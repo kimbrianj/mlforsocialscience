@@ -5,7 +5,7 @@ Authors@R:
     c(person(given = "Brian",
            family = "Kim",
            role = c("aut", "cre"),
-           email = "kimbrian@umd.edu),
+           email = "kimbrian@umd.edu"),
       person(given = "Christoph",
            family = "Kern"))
 Description: A package containing materials for the class Machine Learning for Social Sciences
