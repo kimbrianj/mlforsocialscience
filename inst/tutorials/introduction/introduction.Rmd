@@ -1,0 +1,207 @@
+---
+title: "Machine Learning for Social Science"
+subtitle: "Introduction, R & RStudio"
+output: 
+  learnr::tutorial:
+    progressive: true
+runtime: shiny_prerendered
+tutorial:
+  id: "intro-r"
+  version: 0.5
+---
+
+## Setup
+
+We start by first installing some packages that we will need throughout this notebook.
+
+```{r}
+# install.packages("tidyverse")
+# install.packages("GGally")
+# install.packages("mlbench")
+```
+
+Besides installing the packages, they also have to be loaded in order to be operational.
+
+```{r}
+library(learnr)
+library(tidyverse)
+library(GGally)
+library(mlbench)
+```
+
+## R-Basics, help & packages
+
+This section lists some useful functions when working with R. First of all, it is good practice to cite R whenever it was used in the research process. `citation()` displays the proper way to cite R, whereas `citation("packagename")` can be used when citing R packages.
+
+```{r}
+citation()
+citation("ggplot2")
+```
+
+Typically, one of the first things to do is specifying your working directory. The following functions can be used to display (`getwd()`) and set (`setwd()`) the working directory and to list its contents (`dir()`). Keep in mind that R only accepts paths with forward slashes. 
+
+```{r}
+getwd()
+# setwd("path")
+dir()
+```
+
+To get familiar with R's help system, we can explore the documentation for the function `help()`. This is equivalent to `help(help)`
+
+```{r}
+help()
+```
+
+The documentation for global R options.
+
+```{r}
+help(options)
+```
+
+Use `help.search()` to search the help system.
+
+```{r}
+help.search("glm")
+```
+
+## Working with data
+
+In this notebook, we use the Boston Housing data set. "This dataset contains information collected by the U.S Census Service concerning housing in the area of Boston Mass. It was obtained from the StatLib archive (http://lib.stat.cmu.edu/datasets/boston), and has been used extensively throughout the literature to benchmark algorithms."
+
+Source: https://www.cs.toronto.edu/~delve/data/boston/bostonDetail.html
+
+```{r}
+data(BostonHousing2)
+boston <- BostonHousing2
+```
+
+As a shortcut for `help()` we can use `?` to get some information about this dataset.
+
+```{r}
+?BostonHousing2
+```
+
+The following functions can be used to get a first impression of the data. 
+
+```{r}
+str(boston)
+head(boston)
+```
+
+Note that we can use `View()`, i.e. the data viewer, in connection with conditions on rows and columns to display only certain pieces of the whole data frame.
+
+```{r}
+View(boston)
+View(boston[-(1:500), 1:2])
+```
+
+Using index notation to access only specific variables or observations is an important tool as it can be used in conjunction with many different functions. It is therefore worthwhile to consider some basic examples.
+
+```{r}
+boston[, 1]
+boston[, 1:5]
+boston[1:10, c(1:2,5)]
+```
+
+List all variable names of the Boston Housing data.
+
+```{r}
+names(boston)
+```
+
+Now we can access variables by using their names and the $-notation. This can be combined with conditional statements regarding rows to also filter specific observations.
+
+```{r}
+boston$medv
+boston$medv[1:10]
+boston$medv[boston$chas == 1]
+```
+
+We can also draw random samples from our data set and store those in new objects.
+
+```{r}
+index <- sample(1:nrow(boston), 0.75*nrow(boston))
+subset <- boston[index,]
+nrow(subset)
+```
+
+Finally, here is a `dplyr` approach at selecting rows and columns of the Boston housing dataset.
+
+```{r}
+boston %>%
+  select(medv, chas) %>%
+  filter(chas == 1)
+```
+
+## Exploring data
+
+Basic descriptive statistics can be computed using `summary()`. 
+
+```{r}
+summary(boston$medv)
+```
+
+Note that this function is class-sensitive, i.e. here we get a different output depending on the class of the respective object.
+
+```{r}
+class(boston$medv)
+summary(boston$town)
+class(boston$town)
+```
+
+Some summary statistics for the value of owner-occupied homes grouped by the `chas` river indicator, now using `dplyr`.
+
+```{r}
+boston %>% 
+  group_by(chas) %>%
+  summarise(mean(medv), var(medv), min(medv), max(medv))
+```
+
+Summary statistics again, now for selected towns.
+
+```{r}
+boston %>% 
+  filter(town %in% c("Cambridge", "Boston South Boston")) %>%
+  group_by(town) %>%
+  summarise(mean = mean(medv), variance = var(medv), IQR = IQR(medv), n = n())
+```
+
+A boxplot via `qplot()`, separated by the `chas` dummy variable.
+
+```{r}
+qplot(chas, medv, data = boston, geom = "boxplot", fill = chas)
+```
+
+The previous boxplot with better labels, now using the `ggplot()` function.
+
+```{r}
+ggplot(boston) +
+  geom_boxplot(aes(x = chas, y = medv, fill = chas)) +
+  labs(x = "Charles River dummy", y = "Median home value") +
+  guides(fill = FALSE) +
+  theme_light()
+```
+
+A density plot of the median value of owner-occupied homes, faceted by the river dummy.
+
+```{r}
+ggplot(boston) +
+  geom_density(aes(x = medv), color = "red") +
+  geom_rug(aes(x = medv, y = 0), position = position_jitter(height = 0)) +
+  facet_grid(. ~ chas)
+```
+
+Grouped scatterplots of median home values and crime rates with overlayed loess curves.
+
+```{r}
+ggplot(boston) +
+  geom_point(aes(x = lstat, y = medv)) +
+  geom_smooth(aes(x = lstat, y = medv)) +
+  facet_grid(. ~ chas)
+```
+
+Finally, a scatterplot matrix using `ggpairs()` from the `GGally` package.
+
+```{r}
+ggpairs(boston[,c(5,7,14,19)], lower = list(continuous = "smooth_loess"))
+```
