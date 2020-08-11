@@ -7,8 +7,7 @@ Authors@R:
            role = c("aut", "cre"),
            email = "kimbrian@umd.edu),
       person(given = "Christoph",
-           family = "Kern",
-           role = c("aut", "cre")))
+           family = "Kern"))
 Description: A package containing materials for the class Machine Learning for Social Sciences
 License: What license it uses
 Encoding: UTF-8
