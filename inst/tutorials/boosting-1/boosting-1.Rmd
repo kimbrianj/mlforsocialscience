@@ -1,0 +1,250 @@
+---
+title: "Machine Learning for Social Science"
+subtitle: "Boosting I"
+author: "Christoph Kern"
+output: html_notebook
+---
+
+## Setup
+
+```{r results='hide', message=FALSE, warning=FALSE}
+library(caret)
+library(fastAdaboost)
+library(gbm)
+library(rpart)
+library(pROC)
+```
+
+## Data
+
+In this notebook we (again) use the drug consumption data. The data contains records for 1885 respondents with personality measurements (e.g. Big-5), level of education, age, gender, country of residence and ethnicity as features. In addition, information on the usage of 18 drugs is included. 
+
+Source: https://archive.ics.uci.edu/ml/datasets/Drug+consumption+%28quantified%29
+
+```{r}
+drugs <- read.csv("drug_consumption.data", header = FALSE)
+names(drugs) <- c("ID", "Age", "Gender", "Education", "Country", "Ethnicity", "Neuroticism", "Extraversion", "Openness", "Agreeableness", "Conscientiousness", "Impulsive", "SS", "Alcohol", "Amphet", "Amyl", "Benzos", "Caff", "Cannabis", "Choc", "Coke", "Crack", "Ecstasy", "Heroin", "Ketamine", "Legalh", "LSD", "Meth", "Mushrooms", "Nicotine", "Semer", "VSA")
+drugs$Age <- as.factor(drugs$Age)
+drugs$Gender  <- as.factor(drugs$Gender)
+drugs$Education  <- as.factor(drugs$Education)
+drugs$Country <- as.factor(drugs$Country)
+drugs$Ethnicity <- as.factor(drugs$Ethnicity)
+head(drugs)
+```
+
+First, we build a dummy variable on LSD usage as our outcome of interest.
+
+```{r}
+drugs$D_LSD <- "LSD"
+drugs$D_LSD[drugs$LSD == "CL0"] <- "no_LSD"
+drugs$D_LSD <- as.factor(drugs$D_LSD)
+drugs$D_LSD <- relevel(drugs$D_LSD, "no_LSD")
+table(drugs$LSD, drugs$D_LSD)
+summary(drugs$D_LSD)
+```
+
+Then we split the data into a training and a test part, using `createDataPartition` from `caret`.
+
+```{r}
+set.seed(9453)
+inTrain <- createDataPartition(drugs$D_LSD, 
+                               p = .8, 
+                               list = FALSE, 
+                               times = 1)
+
+drugs_train <- drugs[inTrain,]
+drugs_test <- drugs[-inTrain,]
+```
+
+## AdaBoost
+
+In order to build a set of prediction models it is helpful to follow the `caret` workflow and first decide how to conduct model tuning. Here we use 5-Fold Cross-Validation, mainly to keep computation time to a minimum. `caret` offers many performance metrics, however, they are stored in different functions that need to be combined first.
+
+```{r}
+evalStats <- function(...) c(twoClassSummary(...),
+                             defaultSummary(...),
+                             mnLogLoss(...))
+?defaultSummary()
+```
+
+Now we can specifiy the `trainControl` object.
+
+```{r}
+ctrl  <- trainControl(method = "cv",
+                      number = 5,
+                      summaryFunction = evalStats,
+                      classProbs = TRUE)
+```
+
+As a first method we try out AdaBoost as implemented in the `fastAdaboost` package. Specifically, Adaboost.M1 will be used with three try-out values for the number of iterations.
+
+```{r}
+grid <- expand.grid(nIter = c(50, 100, 150),
+                    method = "Adaboost.M1")
+```
+
+Now we can pass these two objects on to `train`, along with the specification of the model and the method, i.e. `adaboost`. 
+
+```{r}
+set.seed(744)
+ada <- train(D_LSD ~ Age + Gender + Education + Neuroticism + Extraversion +
+             Openness + Agreeableness + Conscientiousness + Impulsive + SS,
+            data = drugs_train,
+            method = "adaboost",
+            trControl = ctrl,
+            tuneGrid = grid,
+            metric = "logLoss")
+```
+
+List the results of the tuning process.
+
+```{r}
+ada
+```
+
+## GBM
+
+For Gradient Boosting as implemented by the `gbm` package, we have to take care of a number of tuning parameters. Now the `expand.grid` is helpful as it creates an object with all possible combinations of our try-out values.
+
+```{r}
+grid <- expand.grid(interaction.depth = 1:3,
+                    n.trees = c(500, 750, 1000), 
+                    shrinkage = c(0.05, 0.01),
+                    n.minobsinnode = 10)
+```
+
+List the tuning grid...
+
+```{r}
+grid
+```
+
+...and begin the tuning process.
+
+```{r}
+set.seed(744)
+gbm <- train(D_LSD ~ Age + Gender + Education + Neuroticism + Extraversion +
+             Openness + Agreeableness + Conscientiousness + Impulsive + SS,
+             data = drugs_train,
+             method = "gbm",
+             trControl = ctrl,
+             tuneGrid = grid,
+             metric = "logLoss",
+             distribution = "bernoulli",
+             verbose = FALSE)
+```
+
+Instead of just printing the results from the tuning process, we can also plot them.
+
+```{r}
+plot(gbm)
+```
+
+We can also extract single trees of the GBM ensemble.
+
+```{r}
+pretty.gbm.tree(gbm$finalModel, i.tree = 1)
+pretty.gbm.tree(gbm$finalModel, i.tree = 2)
+```
+
+A quick look at feature importances.
+
+```{r}
+plot(varImp(gbm), top = 15)
+```
+
+### CART
+
+Here we add a single tree for comparison, using CART. With `rpart2`, max tree depth is the (only) tuning parameter.
+
+```{r}
+grid <- expand.grid(maxdepth = 1:15)
+```
+
+Run the tuning process with `train()`.
+
+```{r}
+set.seed(744)
+cart <- train(D_LSD ~ Age + Gender + Education + Neuroticism + Extraversion +
+             Openness + Agreeableness + Conscientiousness + Impulsive + SS,
+              data = drugs_train,
+              method = "rpart2",
+              trControl = ctrl,
+              tuneGrid = grid,
+              metric = "logLoss")
+```
+
+Plot and print the results.
+
+```{r}
+plot(cart)
+cart
+```
+
+### Logistic regression
+
+Finally we also add a logistic regression model. Obviously we have no tuning parameter here.
+
+```{r}
+set.seed(744)
+logit <- train(D_LSD ~ Age + Gender + Education + Neuroticism + Extraversion +
+             Openness + Agreeableness + Conscientiousness + Impulsive + SS,
+             data = drugs_train,
+             method = "glm",
+             trControl = ctrl)
+```
+
+We may want to take a glimpse at the regression results.
+
+```{r}
+summary(logit)
+```
+
+## Prediction
+
+For evaluating performance, we predict the outcome in the test set in two formats. We use `predict` for predicting class membership and probabilities based on each model, respectively.
+
+```{r}
+c_ada <- predict(ada, newdata = drugs_test)
+c_gbm <- predict(gbm, newdata = drugs_test)
+c_cart <- predict(cart, newdata = drugs_test)
+c_logit <- predict(logit, newdata = drugs_test)
+
+p_ada <- predict(ada, newdata = drugs_test, type = "prob")
+p_gbm <- predict(gbm, newdata = drugs_test, type = "prob")
+p_cart <- predict(cart, newdata = drugs_test, type = "prob")
+p_logit <- predict(logit, newdata = drugs_test, type = "prob")
+```
+
+Given predicted class membership, we can use the function `postResample` in order to get a short summary of each models' performance in the test set.
+
+```{r}
+postResample(pred = c_ada, obs = drugs_test$D_LSD)
+postResample(pred = c_gbm, obs = drugs_test$D_LSD)
+postResample(pred = c_cart, obs = drugs_test$D_LSD)
+postResample(pred = c_logit, obs = drugs_test$D_LSD)
+```
+
+Creating `ROC` objects based on predicted probabilities...
+
+```{r}
+ada_roc <- roc(drugs_test$D_LSD, p_ada$LSD)
+gbm_roc <- roc(drugs_test$D_LSD, p_gbm$LSD)
+cart_roc <- roc(drugs_test$D_LSD, p_cart$LSD)
+logit_roc <- roc(drugs_test$D_LSD, p_logit$LSD)
+```
+
+...and plotting the ROC curves.
+
+```{r, fig.align="center"}
+ggroc(list(Adaboost = ada_roc, 
+           GBM = gbm_roc, 
+           CART = cart_roc, 
+           Logit = logit_roc)) +
+  geom_segment(aes(x = 1, xend = 0, y = 0, yend = 1), 
+               color="darkgrey", linetype="dashed")
+```
+
+## References
+
+* E. Fehrman, A. K. Muhammad, E. M. Mirkes, V. Egan and A. N. Gorban (2015). The Five Factor Model of personality and evaluation of drug consumption risk. https://arxiv.org/abs/1506.06297.

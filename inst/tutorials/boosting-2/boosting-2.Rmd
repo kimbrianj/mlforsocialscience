@@ -1,0 +1,246 @@
+---
+title: "Machine Learning for Social Science"
+subtitle: "Boosting II"
+author: "Christoph Kern"
+output: html_notebook
+---
+
+## Setup
+
+```{r results='hide', message=FALSE, warning=FALSE}
+# devtools::install_github("AppliedDataSciencePartners/xgboostExplainer")
+library(caret)
+library(xgboost)
+library(mboost)
+library(ranger)
+library(xgboostExplainer)
+```
+
+## Data
+
+In this notebook we (again) use the drug consumption data. The data contains records for 1885 respondents with personality measurements (e.g. Big-5), level of education, age, gender, country of residence and ethnicity as features. In addition, information on the usage of 18 drugs is included. 
+
+Source: https://archive.ics.uci.edu/ml/datasets/Drug+consumption+%28quantified%29
+
+```{r}
+drugs <- read.csv("drug_consumption.data", header = FALSE)
+names(drugs) <- c("ID", "Age", "Gender", "Education", "Country", "Ethnicity", "Neuroticism", "Extraversion", "Openness", "Agreeableness", "Conscientiousness", "Impulsive", "SS", "Alcohol", "Amphet", "Amyl", "Benzos", "Caff", "Cannabis", "Choc", "Coke", "Crack", "Ecstasy", "Heroin", "Ketamine", "Legalh", "LSD", "Meth", "Mushrooms", "Nicotine", "Semer", "VSA")
+drugs$Age <- as.factor(drugs$Age)
+drugs$Gender <- as.factor(drugs$Gender)
+drugs$Education <- as.factor(drugs$Education)
+drugs$Country <- as.factor(drugs$Country)
+drugs$Ethnicity <- as.factor(drugs$Ethnicity)
+```
+
+First, we build a dummy variable on LSD usage as our outcome of interest.
+
+```{r}
+drugs$D_LSD <- "LSD"
+drugs$D_LSD[drugs$LSD == "CL0"] <- "no_LSD"
+drugs$D_LSD <- as.factor(drugs$D_LSD)
+summary(drugs$D_LSD)
+```
+
+Then we split the data into a training and a test part, using `createDataPartition` from `caret`.
+
+```{r}
+set.seed(9453)
+inTrain <- createDataPartition(drugs$D_LSD, 
+                               p = .8, 
+                               list = FALSE, 
+                               times = 1)
+
+drugs_train <- drugs[inTrain,]
+drugs_test <- drugs[-inTrain,]
+```
+
+## XGBoost
+
+We start with `xgboost` as our ML method, which is a efficient and competitive Boosting implementation. We first specify the resampling method for tuning with `trainControl()`.
+
+```{r}
+ctrl  <- trainControl(method = "cv",
+                      number = 5,
+                      summaryFunction = twoClassSummary,
+                      verboseIter = TRUE,
+                      classProbs = TRUE)
+```
+
+Using XGBoost requires to take care of many tuning parameters (see `?xgboost`). For this example, we fix most of them. 
+
+```{r}
+grid <- expand.grid(max_depth = c(1, 3, 5),
+                    nrounds = c(500, 1000, 1500),
+                    eta = c(0.05, 0.01, 0.005),
+                    min_child_weight = 10,
+                    subsample = 0.7,
+                    gamma = 0,
+                    colsample_bytree = 1)
+```
+
+Print the tuning grid.
+
+```{r}
+grid
+```
+
+The grid object can now be used in the `train` function to guide the tuning process.
+
+```{r}
+set.seed(8303)
+xgb <- train(D_LSD ~ Age + Gender + Education + Neuroticism + Extraversion +
+             Openness + Agreeableness + Conscientiousness + Impulsive + SS,
+             data = drugs_train,
+             method = "xgbTree",
+             trControl = ctrl,
+             tuneGrid = grid,
+             metric = "ROC")
+```
+
+Plot the tuning results. 
+
+```{r, fig.align="center"}
+plot(xgb)
+```
+
+## mboost
+
+Here we use Model-Based Boosting as an alternative boosting approach. It has considerably fewer tuning parameters as XGBoost -- in fact, via `caret` we primarily have to take care of the number of boosting iterations.
+
+```{r}
+grid <- expand.grid(mstop = c(50, 100, 150, 200, 250, 500),
+                    prune = 'no')
+```
+
+Now we run the tuning process with `train()`, using `glmboost` as the prediction method.
+
+```{r}
+set.seed(8303)
+mboost <- train(D_LSD ~ Age + Gender + Education + Neuroticism + Extraversion +
+                Openness + Agreeableness + Conscientiousness + Impulsive + SS,
+                data = drugs_train,
+                method = "glmboost",
+                trControl = ctrl,
+                tuneGrid = grid,
+                metric = "ROC")
+```
+
+Print the tuning results.
+
+```{r}
+mboost
+```
+
+With `mboost` it is possible to access model "coefficients".
+
+```{r}
+coef(mboost$finalModel)
+```
+
+## Random Forest (and random search)
+
+This section exemplifies the usage of random search (as opposed to grid search). In `caret`, random search is available as an option of the `trainControl()` function.
+
+```{r}
+ctrl  <- trainControl(method = "cv",
+                      number = 5,
+                      summaryFunction = twoClassSummary,
+                      classProbs = TRUE,
+                      search = "random")
+```
+
+Note that now we don't set up a tuning grid, but specify the number of random picks of tuning parameters settings via `tuneLength` in `train()`. We use `ranger` as our ML method, which implements random forests and extremely randomized trees.
+
+```{r}
+set.seed(8303)
+ranger <- train(D_LSD ~ Age + Gender + Education + Neuroticism + Extraversion + 
+                Openness + Agreeableness + Conscientiousness + Impulsive + SS,
+                data = drugs_train,
+                method = "ranger",
+                trControl = ctrl,
+                tuneLength = 10,
+                metric = "ROC")
+```
+
+Print the tuning results (and show the randomly selected try-out values).
+
+```{r}
+ranger
+```
+
+## Comparison
+
+This section shows some options for comparing the CV results of different methods. After we ran a bunch of models, we can use carets `resamples()` function to gather the cross-validation results from all of them.
+
+```{r}
+resamps <- resamples(list(XGBoost = xgb,
+                          mboost = mboost,
+                          RF = ranger))
+```
+
+This object can now be used for comparing these models with respect to their performance, based on Cross-Validation in the training set.
+
+```{r}
+summary(resamps)
+```
+
+We can also plot this information.
+
+```{r}
+bwplot(resamps)
+```
+
+Another option is to compare the resampling distributions with scatterplots.
+
+```{r}
+splom(resamps)
+```
+
+## XGBoost Explainer
+
+Finally, we take a look at the `xgboostExplainer` package. Currently it does not work with XGBoost models that were build with `caret`, i.e. we have to use the `xgboost` package to re-build our XGBoost model. We first need a model matrix.
+
+```{r}
+d_matrix <- model.matrix(D_LSD ~ Age + Gender + Education + Neuroticism + Extraversion + Openness + Agreeableness + Conscientiousness + Impulsive + SS, data = drugs)[,-1]
+```
+
+This matrix can be used to create the data objects needed for `xgboost`.
+
+```{r}
+xgb_train_data <- xgb.DMatrix(d_matrix[inTrain,], label = ifelse(drugs_train$D_LSD == "LSD", 1, 0))
+xgb_test_data <- xgb.DMatrix(d_matrix[-inTrain,])
+```
+
+On this basis, the XGBoost model can be fitted. 
+
+```{r}
+xgb_model <- xgboost(param = list(objective = "binary:logistic"), 
+                     data = xgb_train_data, 
+                     nrounds = 1000,
+                     max_depth = 1,
+                     eta = 0.01,
+                     gamma = 0,
+                     colsample_bytree = 1,
+                     min_child_weight = 10,
+                     subsample = 0.7,
+                     verbose = 0)
+```
+
+This `xgb_model` object can now be used to build the explainer object, which in turn is needed to `explainPredictions()`.
+
+```{r, message = FALSE}
+explainer <- buildExplainer(xgb_model, xgb_train_data, type = "binary")
+train_expl <- explainPredictions(xgb_model, explainer, xgb_test_data)
+train_expl
+```
+
+As the final step, predictions for individual (test) observations can be explained graphically with `showWaterfall()`.
+
+```{r, message = FALSE}
+showWaterfall(xgb_model, explainer, xgb_test_data, d_matrix[-inTrain,], 1, type = "binary")
+showWaterfall(xgb_model, explainer, xgb_test_data, d_matrix[-inTrain,], 2, type = "binary")
+```
+
+## References
+
+* https://github.com/AppliedDataSciencePartners/xgboostExplainer

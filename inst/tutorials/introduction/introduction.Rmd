@@ -6,7 +6,7 @@ output:
     progressive: true
 runtime: shiny_prerendered
 tutorial:
-  id: "intro-r"
+  id: "introduction"
   version: 0.5
 ---
 

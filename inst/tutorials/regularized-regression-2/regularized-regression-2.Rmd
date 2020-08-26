@@ -1,0 +1,159 @@
+---
+title: "Machine Learning for Social Science"
+subtitle: "Regularized regression II"
+author: "Christoph Kern"
+output: html_notebook
+---
+
+## Setup
+
+```{r results='hide', message=FALSE, warning=FALSE}
+library(mlbench)
+library(caret)
+library(glmnet)
+library(gglasso)
+```
+
+## Data
+
+In this notebook, we use the Boston Housing data set. "This dataset contains information collected by the U.S Census Service concerning housing in the area of Boston Mass. It was obtained from the StatLib archive (http://lib.stat.cmu.edu/datasets/boston), and has been used extensively throughout the literature to benchmark algorithms."
+
+Source: https://www.cs.toronto.edu/~delve/data/boston/bostonDetail.html
+
+```{r}
+data(BostonHousing2)
+head(BostonHousing2)
+names(BostonHousing2)
+```
+
+Since we want to compare the performance of some regularized models at the end of the modeling process, we first split the data into a training and a test part. This can be done by random sampling with `sample`.
+
+```{r}
+set.seed(8593)
+train <- sample(1:nrow(BostonHousing2), 0.8*nrow(BostonHousing2))
+boston_train <- BostonHousing2[train,]
+boston_test <- BostonHousing2[-train,]
+```
+
+A quick look on our outcome variable for the next sections, which is the Median value of owner-occupied homes in $1000's.
+
+```{r}
+summary(boston_train$medv)
+summary(boston_test$medv)
+```
+
+## Regularized regression
+
+Now we can prepare our training data for the regularized regression models. The `glmnet` package needs models to be fitted on an X matrix and an y vector, which we need to generate first.
+
+```{r}
+X <- model.matrix(medv ~ . - town - tract - cmedv,
+                  boston_train)[,-1]
+y <- boston_train$medv
+```
+
+### Elastic net
+
+In addition to ridge regression and the lasso, the elastic net can be used as a compromise between the former approaches. Here we build a small tuning loop that estimates series of regularized models for three settings of the mixing parameter `alpha`. 
+
+```{r}
+a <- c(0.1, 0.5, 0.9)
+m1_cv <- foreach(i = a, .combine = rbind) %do% {
+  cv <- cv.glmnet(X, y, alpha = i)
+  data.frame(cvm = cv$cvm, lambda = cv$lambda, lambda.min = cv$lambda.min, alpha = i)
+}
+head(m1_cv)
+```
+
+Based on the former CV loop we select the lambda and alpha constellation that is associated with the smallest CV error.
+
+```{r}
+b1_cv <- m1_cv[m1_cv$cvm == min(m1_cv$cvm),]
+m1 <- glmnet(X, y, lambda = b1_cv$lambda, alpha = b1_cv$alpha)
+coef(m1)
+```
+
+### Prediction in test set
+
+Finally, we investigate the performance of our models in the test set. For this task, we construct an X matrix from the test set.
+
+```{r}
+Xt <- model.matrix(medv ~ . - town - tract - cmedv,
+                  boston_test)[,-1]
+```
+
+This matrix can be used in the `predict` function, along with the respective model that should be used for prediction.
+
+```{r}
+p_net <- predict(m1, newx = Xt)
+```
+
+As a last step, let's look at the test set performance of our model.
+
+```{r}
+postResample(p_net, boston_test$medv)
+```
+
+### Group Lasso
+
+In order to run Group Lasso with `gglasso`, the feature groups have to be specified. Here we only consider two groups that differentiate between location (lon, lat) and all other variables.
+
+```{r}
+groups <- c(1,1,2,2,2,2,2,2,2,2,2,2,2,2,2)
+```
+
+The groups object can be passed onto `gglasso`, along with the X matrix and the y vector. To keep things simple, we request that only 10 lambda values should be considered.
+
+```{r}
+m2 <- gglasso(X, y,
+              group = groups,
+              loss = 'ls',
+              nlambda = 10,
+              eps = 1e-04)
+```
+
+The lambda values and coefficient paths can be listed (plotted) by simply calling (plotting) the results object.
+
+```{r}
+m2
+plot(m2)
+```
+
+The set of coefficients for specific lambda values are in `m2$beta`.
+
+```{r}
+m2$beta[,10]
+m2$beta[,5]
+m2$beta[,1]
+```
+
+As with `glmnet`, we can run gglasso with Cross-Validation in order to find the best lambda values for prediction. (The following chunk might take some time to run). 
+
+```{r}
+m2_cv <- cv.gglasso(X, y,
+              group = groups,
+              loss = 'ls',
+              nlambda = 10,
+              eps = 1e-04,
+              nfolds = 5)
+plot(m2_cv)
+```
+
+### Prediction in test set
+
+Given the CV result, we can use predict directly by referring to `m2_cv$lambda.min` object within `predict` in order to specify which model should be used.
+
+```{r}
+p_gglasso <- predict(m2_cv$gglasso.fit, newx = Xt, s = m2_cv$lambda.min)
+```
+
+Finally, a quick look at the test set performance of our Group Lasso model.
+
+```{r}
+postResample(p_gglasso, boston_test$medv)
+```
+
+## References
+
+* https://web.stanford.edu/~hastie/glmnet/glmnet_alpha.html
+* https://cran.r-project.org/web/packages/gglasso/

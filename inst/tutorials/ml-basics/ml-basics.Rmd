@@ -1,0 +1,197 @@
+---
+title: "ML Basics"
+output: 
+  learnr::tutorial:
+    progressive: true
+runtime: shiny_prerendered
+tutorial:
+  id: "ml-basics"
+  version: 0.5
+---
+
+## Setup
+
+### 
+
+Load needed packages.
+
+```{r}
+library(mlbench)
+library(boot)
+```
+
+### Data
+
+In this notebook, we use the Boston Housing data set. "This dataset contains information collected by the U.S Census Service concerning housing in the area of Boston Mass. It was obtained from the StatLib archive (http://lib.stat.cmu.edu/datasets/boston), and has been used extensively throughout the literature to benchmark algorithms."
+
+Source: https://www.cs.toronto.edu/~delve/data/boston/bostonDetail.html
+
+```{r}
+data(BostonHousing2)
+boston <- BostonHousing2
+head(boston)
+```
+
+## Regression in R
+
+###
+
+In this section, we begin with estimating a fairly simple regression model using the median home value as the outcome and four variables as predictors. 
+
+```{r}
+m1 <- glm(medv ~ crim + chas + age + lstat, data = boston)
+summary(m1)
+```
+
+###
+
+Some more information about our first model.
+
+```{r}
+anova(m1)
+plot(m1)
+```
+
+We can use `predict` to compute predicted home values based on our regression model.
+
+```{r}
+boston$pred1 <- predict(m1)
+head(boston[,c(5,20)])
+```
+
+###
+
+Next, we fit an extended model that includes `lstat` squared as an additional predictor variable.
+
+```{r}
+m2 <- glm(medv ~ crim + chas + age + lstat + I(lstat^2), data = boston)
+summary(m2)
+```
+
+###
+
+Both models were fitted using the full data set. Evaluating the prediction performance of these models on the same data gives us their training error. Here, we compute the training MSE. 
+
+```{r}
+mean((predict(m1) - boston$medv)^2)
+mean((predict(m2) - boston$medv)^2)
+```
+
+## Train and test set
+
+###
+
+However, to get an estimate of the test error we have to proceed differently. A simple option is to split the data into a train and test set by random. Here we use `sample` to prepare and 80 to 20 percent split. 
+
+```{r}
+set.seed(7345)
+train <- sample(1:nrow(BostonHousing2), 0.8*nrow(BostonHousing2))
+```
+
+The resulting object gives us the row positions of the sampled elements. We use these positions to split the data into two pieces.
+
+```{r}
+boston_train <- BostonHousing2[train,]
+boston_test <- BostonHousing2[-train,]
+```
+
+###
+
+Now, refit the previous regression model using the training set only.
+
+```{r}
+m3 <- glm(medv ~ crim + chas + age + lstat, data = boston_train)
+m4 <- glm(medv ~ crim + chas + age + lstat + I(lstat^2), data = boston_train)
+```
+
+On this basis, we use these models to predict home values in the hold-out test set.
+
+```{r}
+pred3 <- predict(m3, newdata = boston_test)
+pred4 <- predict(m4, newdata = boston_test)
+```
+
+###
+
+And evaluate the prediction performance in the test set.
+
+```{r}
+mean((pred3 - boston_test$medv)^2)
+mean((pred4 - boston_test$medv)^2)
+```
+
+## Regression and CV
+
+###
+
+Another (better) evaluation approach is to use cross-validation. To demonstrate how cross-validation works, we will build our own CV loop by hand. We start by shuffling the data with `sample()` and then create 10 random `folds` (groups).
+
+```{r}
+set.seed(7346)
+boston <- boston[sample(nrow(boston)),]
+folds <- cut(seq(1, nrow(boston)), breaks = 10, labels = FALSE)
+table(folds)
+```
+
+###
+
+In the following loop, each group is used as a hold-out fold once per iteration (`test_data`). The other groups (`train_data`) are used to fit the regression model, which is then evaluated on the hold-out fold. This results in 10 test MSEs, one for each iteration.
+
+```{r}
+pred <- rep(NA, nrow(boston))
+
+for(i in 1:10){
+    holdout <- which(folds==i)
+    test_data <- boston[holdout, ]
+    train_data <- boston[-holdout, ]
+    
+    m <- glm(medv ~ crim + chas + age + lstat, data = train_data)
+    pred[holdout] <- predict(m, newdata = test_data)
+    print(mean((pred[holdout] - boston$medv[holdout])^2))
+}
+```
+
+###
+
+Computing the MSE over all hold-out observations gives us the cross-validated MSE.
+
+```{r}
+mean((pred - boston$medv)^2)
+```
+
+###
+
+Cross-validation is implemented in many R packages, which typically allow more flexibility. For regression, we could e.g. use `cv.glm()` from the `boot` package. The default setting is to run leave-one-out cross-validation. For more information see `?cv.glm`.
+
+```{r}
+set.seed(3231)
+cv.err <- cv.glm(boston, m1)
+cv.err$delta
+```
+
+###
+
+We could also do 5-fold...
+
+```{r}
+cv.err5 <- cv.glm(boston, m1, K = 5)
+cv.err5$delta
+```
+
+###
+
+...or 10-fold CV.
+
+```{r}
+cv.err10 <- cv.glm(boston, m1, K = 10)
+cv.err10$delta
+```
+
+###
+
+On this basis, we can now check whether the extended model does not only yield a lower training error, but also performs better when using hold-out sets for model evaluation.
+
+```{r}
+cv.err10.2 <- cv.glm(boston, m2, K = 10)
+cv.err10.2$delta
+```

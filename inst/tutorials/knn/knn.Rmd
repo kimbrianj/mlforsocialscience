@@ -1,0 +1,223 @@
+---
+title: "Performance measures & kNN"
+output: 
+  learnr::tutorial:
+    progressive: true
+runtime: shiny_prerendered
+tutorial:
+  id: "knn"
+  version: 0.5
+---
+
+## Setup
+
+```{r results='hide', message=FALSE, warning=FALSE}
+# devtools::install_github("dkahle/ggmap")
+library(RSocrata)
+library(ggplot2)
+library(ggmap) 
+library(e1071)
+library(class)
+library(caret)
+library(PRROC)
+library(pROC)
+```
+
+### Data
+
+For this notebook we use data on incidents of crime in the City of Chicago. This data "... is extracted from the Chicago Police Department's CLEAR (Citizen Law Enforcement Analysis and Reporting) system." It contains a number of basic information about each crime incident, such as date, location, type and whether there was an arrest. Here we only pull in data from January 2018.
+
+Source: https://data.cityofchicago.org/Public-Safety/Crimes-2001-to-present/ijzp-q8t2
+
+```{r}
+ccj2018 <- read.socrata("https://data.cityofchicago.org/resource/6zsd-86xi.json?$where=date between '2018-01-01' and '2018-01-31'")
+
+#str(ccj2018)
+head(ccj2018)
+names(ccj2018)
+```
+
+Some quick data preparation since most variables seem to be of type `character` by default. We also exclude cases with missing values.
+
+```{r}
+ccj2018$arrest <- as.factor(ccj2018$arrest)
+ccj2018$latitude <- as.numeric(ccj2018$latitude)
+ccj2018$longitude <- as.numeric(ccj2018$longitude)
+
+ccj2018 <- subset(ccj2018, complete.cases(ccj2018[,c(9,20,21)]))
+```
+
+## Train and test set
+
+###
+
+Next, we split the data into a train and test set.
+
+```{r}
+set.seed(765)
+train <- sample(1:nrow(ccj2018), 0.8*nrow(ccj2018))
+c_train <- ccj2018[train,]
+c_test <- ccj2018[-train,]
+```
+
+In addition, we also need X and y data frames for both data pieces as input for `knn()`. In the next sections, the outcome will be `arrest` and we use (only) `latitude` and `longitude` as features.
+
+```{r}
+X_train <- ccj2018[train,c(20,21)]
+X_test <- ccj2018[-train,c(20,21)]
+y_train <- ccj2018[train,9]
+y_test <- ccj2018[-train,9]
+```
+
+###
+
+A quick look at our outcome variable.
+
+```{r}
+summary(y_train)
+summary(y_test)
+```
+
+As a nice illustration of our prediction problem, we can use `qmap()` to build a map of Chicago and then plot the crime incidents colored by `arrest` on top.
+
+```{r,  message=FALSE, warning=FALSE}
+bbox <- c(left = -87.896805, bottom = 41.677015, right = -87.409286, top = 42.082936)
+map <- get_stamenmap(bbox = bbox, zoom = 12, maptype = "toner-hybrid")
+map <- ggmap(map)
+```
+
+```{r}
+map + 
+  geom_point(data = X_train, aes(x = longitude, y = latitude, color = y_train), size = 1, alpha = 0.5) 
+```
+
+## kNN
+
+###
+
+In order to find a useful kNN setup, we tune k using 10-Fold Cross-Validation. This can be done e.g. with `tune.knn()`.
+
+```{r}
+set.seed(761)
+tune <- tune.knn(X_train, y_train, k = 1:25, tunecontrol = tune.control(sampling = "cross"), cross = 10) 
+summary(tune)
+plot(tune)
+```
+
+###
+
+Seems like `k = 21` is a good choice. We pass this information to `knn()`, together with X from the test data. Note that the resulting object are the test set predictions, since with kNN there is no separate model to be stored.
+
+```{r}
+y_knn <- knn(X_train, X_test, y_train, k = 21, prob = TRUE)
+```
+
+###
+
+We can also add a logistic regression model for comparison, although this is unlikely to perform well given the prediction task at hand.
+
+```{r}
+logit <- glm(arrest ~ latitude + longitude, data = c_train, family = binomial)
+summary(logit)
+```
+
+###
+
+Given the `logit` object, we can generate predicted risk scores for the test set and transform those into predicted classes. Note that we are using an arbitrary classification threshold (0.5), which might not be the best option.
+
+```{r}
+yp_logit <- predict(logit, newdata = c_test, type = "response")
+y_logit <- as.factor(ifelse(yp_logit > 0.5, "TRUE", "FALSE"))
+```
+
+## Prediction performance
+
+Now we can inspect the prediction performance of kNN and the logit model using `confusionMatrix()` from `caret`, which can be used to (also) display a lot of performance measures, given predicted classes.
+
+```{r}
+confusionMatrix(y_knn, y_test, mode = "everything", positive = "TRUE")
+confusionMatrix(y_logit, y_test, mode = "everything", positive = "TRUE")
+```
+
+Additionally, ROC and PR curves are helpful for evaluating prediction performance with categorical outcomes. Here we could (e.g.) use the `PRROC` package. As an example, we only consider the knn model.
+
+First, get predicted risk scores.
+
+```{r}
+yp_knn <- 1 - attributes(y_knn)$prob
+```
+
+Then, create helper objects...
+
+```{r}
+pc <- yp_knn[y_test == "TRUE"]
+nc <- yp_knn[y_test == "FALSE"]
+```
+
+...that can be passed to `roc.curve()` (see `?roc.curve`).
+
+```{r}
+roc <- roc.curve(scores.class0 = pc, scores.class1 = nc, curve = T)
+```
+
+Finally, we can print and plot the resulting roc object.
+
+```{r, fig.align="center"}
+roc
+plot(roc, scale.color = heat.colors(100))
+```
+
+Same for PR curve.
+
+```{r}
+pr <- pr.curve(scores.class0 = pc, scores.class1 = nc, curve = T)
+pr
+plot(pr, scale.color = heat.colors(100))
+```
+
+Try to calculate precision at top 100, i.e. the expected precision when classifying the 100 test incidents with the highest risk scores as being arrests (`TRUE`). For this, we need to create a new prediction vector. The function `order()` might be helpful here.
+
+```{r}
+yp <- data.frame(yp_knn, y_test)
+yp <- yp[order(-yp_knn),]
+yp$yt_knn <- "FALSE"
+yp[1:100,]$yt_knn <- "TRUE"
+```
+
+Next, compute the precision given the new predicted classes and `y_test`.
+
+```{r}
+precision(as.factor(yp$yt_knn), yp$y_test, relevant = "TRUE")
+```
+
+## Classification thresholds
+
+In the previous plots, we have seen that performance measures such as sensitivity and specificity are highly dependent on the underlying classification threshold. Therefore, lets try to find a threshold that satisfies some optimality criterion, instead of simply using 0.5. For this purpose, we have to create another roc object for the knn result, now using the `pROC` package.
+
+```{r}
+roc2 <- roc(y_test, yp_knn)
+roc2
+```
+
+This package provides the function `coords()`, which can be used for threshold optimization (see `?coords`). Note that in an actual application, we couldn't use the test set for this purpose, so another hold-out set would be needed.
+
+```{r}
+knn_t <- coords(roc2, x = "best", best.method = "closest.topleft", best.weights = c(1, 0.2))
+knn_t
+```
+
+We can now use this new threshold to predict class membership.
+
+```{r}
+y_knn2 <- as.factor(ifelse(yp_knn > unlist(knn_t[1]), "TRUE", "FALSE"))
+```
+
+And finally build a confusion matrix using the predicted classes from above.
+
+```{r}
+confusionMatrix(y_knn2, y_test, mode = "everything", positive = "TRUE")
+```
+
+## References
+
+* https://dev.socrata.com/foundry/data.cityofchicago.org/6zsd-86xi

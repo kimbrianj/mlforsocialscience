@@ -1,0 +1,214 @@
+---
+title: "Machine Learning for Social Science"
+subtitle: "Regularized regression I"
+author: "Christoph Kern"
+output: html_notebook
+---
+
+## Setup
+
+```{r results='hide', message=FALSE, warning=FALSE}
+library(mlbench)
+library(glmnet)
+library(caret)
+```
+
+## Data
+
+In this notebook, we use the Boston Housing data set. "This dataset contains information collected by the U.S Census Service concerning housing in the area of Boston Mass. It was obtained from the StatLib archive (http://lib.stat.cmu.edu/datasets/boston), and has been used extensively throughout the literature to benchmark algorithms."
+
+Source: https://www.cs.toronto.edu/~delve/data/boston/bostonDetail.html
+
+```{r}
+data(BostonHousing2)
+head(BostonHousing2)
+names(BostonHousing2)
+```
+
+Since we want to compare the performance of some regularized models at the end of the modeling process, we first split the data into a training and a test part. This can be done by random sampling with `sample`.
+
+```{r}
+set.seed(7345)
+train <- sample(1:nrow(BostonHousing2), 0.8*nrow(BostonHousing2))
+boston_train <- BostonHousing2[train,]
+boston_test <- BostonHousing2[-train,]
+```
+
+A quick look on our outcome variable for the next sections, which is the Median value of owner-occupied homes in $1000's.
+
+```{r}
+summary(boston_train$medv)
+summary(boston_test$medv)
+```
+
+## Regularized regression
+
+Now we can prepare our training data for the regularized regression models. The `glmnet` package needs models to be fitted on an X matrix and an y vector, which we need to generate first.
+
+```{r}
+X <- model.matrix(medv ~ . - town - tract - cmedv,
+                  boston_train)[,-1]
+y <- boston_train$medv
+```
+
+### Ridge regression
+
+To estimate a sequence of regularized models we pass our X and y objects to the `glmnet` function. Setting alpha to zero equals to fitting ridge regression models. By default, `glmnet` figures out an appropriate  series of lambda values.
+
+```{r}
+m1 <- glmnet(X, y, alpha = 0)
+summary(m1)
+```
+
+Let's see how we can access the results from glmnet...
+
+```{r}
+m1$lambda[1]
+m1$lambda[100]
+m1$beta[,1]
+m1$beta[,ncol(m1$beta)]
+```
+
+A nice feature of `glmnet` is that we can easily plot the coefficient paths by simply calling `plot` in connection with our results object.
+
+```{r}
+plot(m1, label=T)
+plot(m1, label=T, xvar = "lambda")
+```
+
+However, at this point we do not know which lambda leads to the best model. Defining "best" in terms of prediction performance for new data, Cross-Validation can be used for this task. 
+
+```{r}
+m1_cv <- cv.glmnet(X, y, alpha = 0)
+plot(m1_cv)
+```
+
+On this basis, we can now have a look at the models that perform best in terms of the smallest CV error and with respect to the 1-SE rule. We also store the value of lambda that corresponds to the smallest CV error for later usage.
+
+```{r}
+coef(m1_cv, s = "lambda.min")
+coef(m1_cv, s = "lambda.1se")
+bestlam1 <- m1_cv$lambda.min
+bestlam1
+```
+
+### Lasso
+
+To estimate a Lasso sequence, we simply call `glmnet` again and set alpha to one. 
+
+```{r}
+m2 <- glmnet(X, y, alpha = 1)
+```
+
+Here we want to display the first, last and one in-between model of our model series. We see that coefficients are eventually shrunken exactly to zero as the penalty on model complexity increases.
+
+```{r}
+m2$lambda[1]
+m2$lambda[(ncol(m2$beta)/2)]
+m2$lambda[ncol(m2$beta)]
+m2$beta[,1]
+m2$beta[,(ncol(m2$beta)/2)]
+m2$beta[,ncol(m2$beta)]
+```
+
+This also becomes clear when plotting the coefficient paths.
+
+```{r}
+plot(m2, label=T, xvar = "lambda")
+```
+
+When using Cross-Validation with Lasso, we see that a full model with all features may not lead to the best model in terms of prediction performance.
+
+```{r}
+m2_cv <- cv.glmnet(X, y, alpha = 1)
+plot(m2_cv)
+```
+
+Again, we may have a look at the model with the smallest CV error and store the corresponding lambda.
+
+```{r}
+coef(m2_cv, s = "lambda.min")
+bestlam2 <- m2_cv$lambda.min
+```
+
+### Prediction in test set
+
+Finally, we investigate the performance of our models in the test set. For this task, we construct an X matrix from the test set.
+
+```{r}
+Xt <- model.matrix(medv ~ . - town - tract - cmedv,
+                  boston_test)[,-1]
+```
+
+This matrix can be used in the `predict` function, along with the respective model that should be used for prediction. We try out our best ridge, lasso and elastic net model. One can also add a "null model" with a huge penalty for comparison purposes.
+
+```{r}
+p_ridge <- predict(m1, s = bestlam1, newx = Xt)
+p_lasso <- predict(m2, s = bestlam2, newx = Xt)
+
+p_null <- predict(m2, s = 1e10, newx = Xt)
+```
+
+As a last step, let's look at the test MSE of our models.
+
+```{r}
+mean((p_null - boston_test$medv)^2)
+
+mean((p_ridge - boston_test$medv)^2)
+mean((p_lasso - boston_test$medv)^2)
+```
+
+## More plots
+
+We can also plot the coefficient paths separately to get a more detailed picture. Here we use the Lasso results and extract the coefficients using `as.matrix`.
+
+```{r}
+coefs <- as.matrix(m2$beta)
+```
+
+Now we can plot the coefficient path over the range of lambdas for each variable by looping over the rows of the `coefs` object.
+
+```{r}
+par(mfrow=c(3,5), mar=c(1,1,1,1))
+for (i in 1:nrow(coefs)) 
+  plot(coefs[i,], type = "l")
+```
+
+## Feature selection by filter
+
+Another approach for selecting features is (simple) feature screening via filtering. In this context it is important to be cautious when estimating predicting performance and correctly combine filtering and CV. The `caret` can be used to take care of that. First, we have to set up our inner (trainControl) and outer (sbfControl) evaluation techniques.
+
+```{r}
+sbf_ctrl <- sbfControl(functions = caretSBF,
+                       method = "cv",
+                       number = 10)
+
+ctrl <- trainControl(method = "none")
+```
+
+Now we can run CV with feature selection by filter via `sbf`. 
+
+```{r}
+m3 <- sbf(medv ~ . - town - tract - cmedv,
+          data = boston_train,
+          method = 'lm',
+          sbfControl = sbf_ctrl,
+          trControl = ctrl)
+```
+
+The corresponding results object gives us an estimate of prediction performance and information on the selected features.
+
+```{r}
+m3
+```
+
+We can also use this object to apply the final model (fitted on the full training set) to the test set and calculate the test MSE.
+
+```{r}
+p_filter <- predict(m3, newdata = boston_test)
+mean((p_filter - boston_test$medv)^2)
+```
+
+## References
+
+* https://web.stanford.edu/~hastie/glmnet/glmnet_alpha.html
