@@ -1,0 +1,218 @@
+---
+title: "Interpretable Machine Learning"
+subtitle: "An Example using Random Forests"
+output: 
+  learnr::tutorial:
+    progressive: true
+runtime: shiny_prerendered
+tutorial:
+  id: "knn"
+  version: 0.5
+---
+
+## Setup
+
+```{r results='hide', message=FALSE, warning=FALSE}
+library(caret)
+library(ranger)
+library(pdp)
+library(iml)
+library(DALEX)
+```
+
+### Data
+
+In this notebook, we use the Communities and Crime data from the UCI ML repository, which includes information about communities in the US. "The data combines socio-economic data from the 1990 US Census, law enforcement data from the 1990 US LEMAS survey, and crime data from the 1995 FBI UCR"
+
+Source: https://archive.ics.uci.edu/ml/datasets/Communities+and+Crime
+
+First, some data prep. We will use the `crime` data which has been included as part of the `mlforsocialscience` package.
+
+```{r}
+data(crime)
+```
+
+Build a binary outcome variable.
+
+```{r}
+quantile(crime$ViolentCrimesPerPop)
+crime$D_crime <- ifelse(crime$ViolentCrimesPerPop > 0.33, "high", "not_high")
+crime$D_crime <- as.factor(crime$D_crime)
+table(crime$D_crime)
+```
+
+Final clean up.
+
+```{r}
+crime$state <- NULL
+crime$communityname <- NULL
+crime$fold <- NULL
+crime$ViolentCrimesPerPop <- NULL
+```
+
+Split the data into a training and a test part. This time we use `createDataPartition()` from `caret`, which samples within the levels of the outcome variable when splitting the data.
+
+```{r}
+set.seed(9282)
+inTrain <- createDataPartition(crime$D_crime, 
+                               p = .8, 
+                               list = FALSE, 
+                               times = 1)
+
+crime_train <- crime[inTrain,]
+crime_test <- crime[-inTrain,]
+```
+
+## RF and Extra-Trees
+
+We start by building random forests and Extra-Trees using the `caret` package. We first specify our evaluation method -- e.g., 5-fold cross-validation.
+
+```{r}
+ctrl  <- trainControl(method = "cv",
+                      number = 5,
+                      summaryFunction = twoClassSummary,
+                      classProbs = TRUE)
+```
+
+Next, a grid object can be used to specify a set of try-out values. For random forest and Extra-Trees, we have to care about `mtry`, i.e. the number of features to sample at each split point. Furthermore, the `ranger` package treats the type of forest as a tuning parameter.
+
+```{r}
+grid <- expand.grid(mtry = c(sqrt(ncol(crime_train)),
+                             log(ncol(crime_train))),
+                    splitrule = c("gini", "extratrees"),
+                    min.node.size = 10)
+grid
+```
+
+The grid object can be passed on to `train()`, along with the specification of the model and the method (`ranger`).
+
+```{r}
+set.seed(9385)
+rf <- train(D_crime ~ .,
+            data = crime_train,
+            method = "ranger",
+            trControl = ctrl,
+            tuneGrid = grid,
+            metric = "ROC",
+            importance = "impurity")
+```
+
+Calling the ranger object lists the results of the tuning process.
+
+```{r}
+rf
+```
+
+With ranger, `treeInfo()` can be used to print individual tree results. 
+
+```{r}
+treeInfo(rf$finalModel, tree = 1)
+```
+
+## Variable Importance, PDP and ICE
+
+We start with plotting variable importances to get a general idea of which variables were most effective in reducing impurity when building the random forest.
+
+```{r}
+plot(varImp(rf), top = 10)
+```
+
+Partial dependence plots can be useful in order to see how the features are related to the outcome according to the fitted model. With the `pdp` package, we start by running the `partial()` function with the variables of interest.
+
+```{r}
+pdp1 <- partial(rf, pred.var = "PctIlleg", 
+                type = "classification", 
+                which.class = 1, prob = T)
+pdp2 <- partial(rf, pred.var = "racePctWhite", 
+                type = "classification", 
+                which.class = 1, prob = T)
+```
+
+The actual plots can be created with `plotPartial()`.
+
+```{r}
+p1 <- plotPartial(pdp1, rug = T, train = crime_train)
+p2 <- plotPartial(pdp2, rug = T, train = crime_train)
+grid.arrange(p1, p2, ncol = 2)
+```
+
+We can also consider multiple predictors jointly.
+
+```{r, message = FALSE, results = "hide"}
+pdp3 <- partial(rf, pred.var = c("PctIlleg", "racePctWhite"), 
+                type = "classification", 
+                which.class = 1, prob = T, 
+                grid.resolution = 20, progress = "text")
+plotPartial(pdp3, levelplot = F, drape = T, colorkey = F, 
+            screen = list(z = 45, x = -60))
+```
+
+A centered ICE plot example with the `pdp` package.
+
+```{r}
+pdp4 <- partial(rf, pred.var = "PctIlleg", 
+                type = "classification", 
+                which.class = 1, prob = T, 
+                ice = TRUE, center = T)
+plotPartial(pdp4, rug = T, train = crime_train, alpha = 0.1)
+```
+
+## IML
+
+The `iml` package implements a variety of tools for interpreting machine learning models. It requires us to first create a `Predictor()` container as a helper object. 
+
+```{r}
+X <- crime_train[which(names(crime_train) != "D_crime")]
+predictor <- Predictor$new(rf, data = X, y = crime_train$D_crime, type = "prob")
+```
+
+On this basis, we can calculate feature importances based on permutations of the data. Note that more repetitions would help to stabilize results.
+
+```{r}
+imp <- FeatureImp$new(predictor, loss = "ce", n.repetitions = 2)
+plot(imp)
+imp$results
+```
+
+From here on we modify the `Predictor()` container and only focus on the outcome category `high` (crimes).
+
+```{r}
+predictor <- Predictor$new(rf, data = X, y = crime_train$D_crime, type = "prob",
+                           class = "high")
+```
+
+The `FeatureEffect()` function allows to compute PDP, ICE and ALE plots, with ALE being the default. We create ALE plots for the same features as above with `pdp`.
+
+```{r}
+ale <- FeatureEffect$new(predictor, feature = "PctIlleg")
+plot(ale)
+ale$set.feature("racePctWhite")
+plot(ale)
+```
+
+Global surrogate models can help to summarize rules based on a complex ML model. Here we build a small decision tree to approximate our random forest model.
+
+```{r}
+tree <- TreeSurrogate$new(predictor, maxdepth = 2)
+plot(tree)
+tree$r.squared
+```
+
+Finally, we can use local surrogate models such as LIME to explain predictions for individual observations. In the following we focus on the first case in our training data set.
+
+```{r}
+crime_train[1,]
+predict(rf, newdata = crime_train[1,], type = "prob")
+```
+
+LIME can be used to built a simple local model for this data point. Here we restrict the number of features that we want to use in the local model to `k = 3` and print/ plot the LIME results.
+
+```{r}
+lime <- LocalModel$new(predictor, x.interest = X[1,], k = 3)
+lime$results
+plot(lime)
+```
+
+## References
+
+* https://cran.r-project.org/web/packages/iml/vignettes/intro.html

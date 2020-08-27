@@ -1,8 +1,12 @@
 ---
-title: "Machine Learning for Social Science"
-subtitle: "Regularized regression II"
-author: "Christoph Kern"
-output: html_notebook
+title: "Regularized Regression II"
+output: 
+  learnr::tutorial:
+    progressive: true
+runtime: shiny_prerendered
+tutorial:
+  id: "regularized-regression-2"
+  version: 0.5
 ---
 
 ## Setup

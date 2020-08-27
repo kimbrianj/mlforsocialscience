@@ -1,0 +1,206 @@
+---
+title: "Bagging and Random Forests"
+output: 
+  learnr::tutorial:
+    progressive: true
+runtime: shiny_prerendered
+tutorial:
+  id: "ensemble"
+  version: 0.5
+---
+
+## Setup
+
+```{r results='hide', message=FALSE, warning=FALSE}
+library(mlbench)
+library(foreach)
+library(randomForest)
+library(rpart)
+library(caret)
+```
+
+### Data
+
+In this notebook, we use the Boston Housing data set (again). "This dataset contains information collected by the U.S Census Service concerning housing in the area of Boston Mass. It was obtained from the StatLib archive (http://lib.stat.cmu.edu/datasets/boston), and has been used extensively throughout the literature to benchmark algorithms."
+
+Source: https://www.cs.toronto.edu/~delve/data/boston/bostonDetail.html
+
+```{r}
+data(BostonHousing2)
+names(BostonHousing2)
+```
+
+First, we drop some variables that we will not use in the next sections.
+
+```{r}
+BostonHousing2$town <- NULL
+BostonHousing2$tract <- NULL
+BostonHousing2$cmedv <- NULL
+```
+
+Next, we start by splitting the data into a training and test set with `sample()`.
+
+```{r}
+set.seed(3924)
+train <- sample(1:nrow(BostonHousing2), 0.8*nrow(BostonHousing2))
+boston_train <- BostonHousing2[train,]
+boston_test <- BostonHousing2[-train,]
+```
+
+## Bagging
+
+### Bagging Trees
+
+To show how Bagging works, we can build our own Bagging model with a `foreach` loop. In this loop, we first sample $n$ observations from our training data with replacement. Then, a regression tree is grown using this sample and the test set predictions from this tree are stored in the object `y_tbag`, respectively.
+
+```{r}
+y_tbag <- foreach(m = 1:100, .combine = cbind) %do% { 
+  rows <- sample(nrow(boston_train), replace = T)
+  fit <- rpart(medv ~ ., 
+               data = boston_train[rows,],
+               method = "anova",
+               cp = 0.001)
+  predict(fit, newdata = boston_test)
+}
+```
+
+Lets see how the resulting object `y_tbag` looks like.
+
+```{r}
+head(y_tbag[,1:5])
+```
+
+Now we can compare the prediction performance of a single tree (e.g. the first) with the performance of the ensemble (the average of the predictions from all trees).
+
+```{r}
+postResample(y_tbag[,1], boston_test$medv)
+postResample(rowMeans(y_tbag), boston_test$medv)
+```
+
+Seems like averaging over multiple trees helps. To investigate this result, we can summarize the row variances of all test set predictions to get an idea of the variability of the individual tree predictions. 
+
+```{r}
+summary(apply(y_tbag,1,var))
+```
+
+### Bagging OLS
+
+At this point, it might be interesting to see whether linear models also benefit from Bagging. To investigate this, we simply plug a linear regression model into the foreach loop.
+
+```{r}
+y_mbag <- foreach(m = 1:100, .combine = cbind) %do% { 
+  rows <- sample(nrow(boston_train), replace = T)
+  fit <- lm(medv ~ ., 
+            data = boston_train[rows,])
+  predict(fit, newdata = boston_test)
+}
+```
+
+However, Bagging is typically more effective with trees rather than with linear regression. We can check whether this is the case here by again comparing the performance of a single model with the performance of the ensemble.
+
+```{r}
+postResample(y_mbag[,1], boston_test$medv)
+postResample(rowMeans(y_mbag), boston_test$medv)
+```
+
+Again, summarize the row variances.
+
+```{r}
+summary(apply(y_mbag,1,var))
+```
+
+### Bagging via caret
+
+Although useful for demonstration purposes, we don't need to program our own loop each time to implement Bagging. The `train()` function of the `caret` package can be used to call a variety of supervised learning methods and also offers a number of evaluation approaches. For this, we first specify our evaluation method.
+
+```{r}
+ctrl  <- trainControl(method = "cv",
+                      number = 5)
+```
+
+Now we can call `train()`, along with the specification of the model and the evaluation method.
+
+```{r}
+cbag <- train(medv ~ .,
+              data = boston_train,
+              method = "treebag",
+              trControl = ctrl)
+```
+
+Return the cross-validation results.
+
+```{r}
+cbag
+```
+
+Use the model to predict the outcome in the test set.
+
+```{r}
+y_cbag <- predict(cbag, newdata = boston_test)
+```
+
+## Random Forests
+
+In order to also use random forests for our prediction task, we first specify a set of try-out values for model tuning. For random forest, we primarily have to care about `mtry`, i.e. the number of features to sample at each split point.
+
+```{r}
+ncols <- ncol(boston_train)
+mtrys <- expand.grid(mtry = c(sqrt(ncols)-1,sqrt(ncols),sqrt(ncols)+1))
+```
+
+This object can be passed on to `train()`, along with the specification of the model, and the tuning and prediction method. For random forests, we use `rf`.
+
+```{r}
+rf <- train(medv ~ .,
+            data = boston_train,
+            method = "rf",
+            trControl = ctrl,
+            tuneGrid = mtrys)
+```
+
+Calling the random forest object lists the results of the tuning process.
+
+```{r}
+rf
+```
+
+On this basis, `caret` trains the final (optimal) model with the full training data set. Plotting the final model gives us an idea of how the error evolves as more trees are added.
+
+```{r, fig.align="center"}
+plot(rf$finalModel)
+```
+
+With random forests, the individual trees of the ensemble typically look quite different. To get an idea of the components of the forest, `getTree()` can be used to list individual trees.
+
+```{r}
+getTree(rf$finalModel, k = 1, labelVar = T)[1:10,]
+getTree(rf$finalModel, k = 2, labelVar = T)[1:10,]
+```
+
+Finally, we predict the outcome in the test set.
+
+```{r}
+y_rf <- predict(rf, newdata = boston_test)
+```
+
+## Comparison
+
+Finally, we can compare the prediction performance of the former approaches with the performance of a single decision tree, now fitted on the complete training data. Prepare the regression tree, including pruning based on CV.
+
+```{r}
+tree <- rpart(medv ~ ., 
+              data = boston_train,
+              method = "anova", 
+              cp = 0.001)
+mincp <- tree$cptable[which.min(tree$cptable[,"xerror"]),"CP"]
+p_tree <- prune(tree, cp = mincp)
+y_tree <- predict(p_tree, newdata = boston_test)
+```
+
+Now we can compare the performance of the single tree and the tree ensembles.
+
+```{r}
+postResample(y_tree, boston_test$medv)
+postResample(y_cbag, boston_test$medv)
+postResample(y_rf, boston_test$medv)
+```

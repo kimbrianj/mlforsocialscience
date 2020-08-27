@@ -28,4 +28,8 @@ Imports:
   fastAdaboost,
   gbm,
   xgboost,
-  mboost
+  mboost,
+  pdp,
+  iml,
+  DALEX,
+  ranger
