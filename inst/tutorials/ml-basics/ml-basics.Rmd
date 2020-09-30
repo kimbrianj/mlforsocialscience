@@ -164,7 +164,6 @@ mean((pred - boston$medv)^2)
 Cross-validation is implemented in many R packages, which typically allow more flexibility. For regression, we could e.g. use `cv.glm()` from the `boot` package. The default setting is to run leave-one-out cross-validation. For more information see `?cv.glm`.
 
 ```{r}
-set.seed(3231)
 cv.err <- cv.glm(boston, m1)
 cv.err$delta
 ```

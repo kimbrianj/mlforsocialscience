@@ -12,6 +12,7 @@ tutorial:
 ## Setup
 
 ```{r results='hide', message=FALSE, warning=FALSE}
+library(foreach)
 library(mlbench)
 library(caret)
 library(glmnet)
