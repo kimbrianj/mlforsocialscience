@@ -19,7 +19,7 @@ library(caret)
 library(verification)
 ```
 
-## Data
+### Data
 
 In this notebook we use the Titanic data that is used on Kaggle (https://www.kaggle.com) as an introductory competition for getting familiar with machine learning. It includes information on a set of Titanic passengers, such as age, sex, ticket class and whether he or she survived the Titanic tragedy (Note that the `titanic` package also provides a separate test set that precludes the survival variable).
 
