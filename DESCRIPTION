@@ -34,4 +34,9 @@ Imports:
   iml,
   DALEX,
   ranger,
-  foreach
+  foreach,
+  partykit,
+  strucchange,
+  gam,
+  verification,
+  rpart

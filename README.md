@@ -24,7 +24,8 @@ launch_tutorial('introduction')
 - `'knn'`: Shows how to do k-Nearest Neighbors in R, as well as discussing performance metrics.
 - `'regularized-regression-1'`: Lasso and Ridge regression using R.
 - `'regularized-regression-2'`: Further discussion of regularized regression, including elastic net and group lasso.
-- `'trees'`: Goes over the implementation of Decision Trees in R
+- `'trees-1'`: Goes over the basics of implementation of Decision Trees in R.
+- `'trees-2'`: Goes over CTREE and Model-Based Recursive Partitioning in R.
 - `'ensemble'`: Shows the basics of using ensemble methods with tree-based methods.
 - `'interpretable-ml'`: Demonstrates how to implement interpretable ML techniques, such as PDP plots.
 - `'boosting-1'`: Applications of boosting with AdaBoost and Gradient Boosting

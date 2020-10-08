@@ -1,0 +1,159 @@
+---
+title: "Decision Trees II"
+output: 
+  learnr::tutorial:
+    progressive: true
+runtime: shiny_prerendered
+tutorial:
+  id: "trees-2"
+  version: 0.5
+---
+
+## Setup
+
+```{r results='hide', message=FALSE, warning=FALSE}
+library(mlbench)
+library(partykit)
+library(strucchange)
+library(caret)
+```
+
+## Data
+
+In this notebook, we use the Boston Housing data set (again). "This dataset contains information collected by the U.S Census Service concerning housing in the area of Boston Mass. It was obtained from the StatLib archive (http://lib.stat.cmu.edu/datasets/boston), and has been used extensively throughout the literature to benchmark algorithms."
+
+Source: https://www.cs.toronto.edu/~delve/data/boston/bostonDetail.html
+
+```{r}
+data(BostonHousing2)
+head(BostonHousing2)
+names(BostonHousing2)
+```
+
+We start by splitting the data into a training and test set with `sample`.
+
+```{r}
+set.seed(7345)
+train <- sample(1:nrow(BostonHousing2), 0.8*nrow(BostonHousing2))
+boston_train <- BostonHousing2[train,]
+boston_test <- BostonHousing2[-train,]
+```
+
+## CTREE
+
+In order to grow a conditional inference tree, we use the `ctree` function. We begin with the default setup and plot the resulting object.
+
+```{r}
+ct1 <- ctree(medv ~ . - town - tract - cmedv,
+             data = boston_train)
+ct1
+plot(ct1, gp = gpar(fontsize = 6), tp_args = list(mainlab=""))
+```
+
+In order to get a somewhat smaller tree (which is hopefully easier to plot), we can set higher thresholds for splitting a node and also adjust tree depth. 
+
+```{r}
+ct2 <- ctree(medv ~ . - town - tract - cmedv,
+             data = boston_train, 
+             mincriterion = 0.999, # 1-p threshold for splitting 
+             minbucket = 20, # min number of observations per node 
+             maxdepth = 3) # max tree depth
+ct2
+plot(ct2, gp = gpar(fontsize = 8), tp_args = list(mainlab=""))
+```
+
+The `sctest` function is useful to get a better understanding of how the tree was grown. It lists the results of the permutation tests for each node.
+
+```{r}
+sctest(ct2)
+```
+
+## Model-based recursive partitioning
+
+In model-based recursive partitioning, we begin with a prespecified model and define a set of partitioning variables. Here we follow the example of the `partykit` vignette.
+
+https://cran.r-project.org/web/packages/partykit/vignettes/mob.pdf
+
+```{r}
+tree1 <- lmtree(medv ~ log(lstat) + I(rm^2) | 
+                zn + indus + chas + nox + age + dis + rad + tax + crim + b + ptratio, 
+                data = boston_train, 
+                verbose = TRUE)
+plot(tree1, gp = gpar(fontsize = 9))
+```
+
+A brief summary of the model-based tree.
+
+```{r}
+tree1
+```
+
+A more detailed summary of the model in node 1 (root node).
+
+```{r}
+summary(tree1, node = 1)
+```
+
+Model coefficients for all terminal nodes.
+
+```{r}
+coef(tree1) 
+```
+
+Extract log-Likehood and Information Criteria.
+
+```{r}
+logLik(tree1)
+AIC(tree1)
+BIC(tree1)
+```
+
+Now, lets grow a larger tree by adjusting the `lmtree` arguments.
+
+```{r}
+tree2 <- lmtree(medv ~ log(lstat) + I(rm^2) | 
+                zn + indus + chas + nox + age + dis + rad + tax + crim + b + ptratio, 
+                data = boston_train,
+                alpha = 0.5, # default significance level = 0.05
+                minsize = NULL, # default: min. (10*no. of parameters) observations per node
+                maxdepth = Inf) # default: Infinity
+plot(tree2, gp = gpar(fontsize = 8))
+```
+
+We can also have a look at the AIC from both trees.
+
+```{r}
+AIC(tree1)
+AIC(tree2)
+```
+
+## Prediction
+
+Finally, CTREE and MOB results can also be used for prediction.
+
+```{r}
+y_ct1 <- predict(ct1, newdata = boston_test)
+y_ct2 <- predict(ct2, newdata = boston_test)
+y_tree1 <- predict(tree1, newdata = boston_test)
+y_tree2 <- predict(tree2, newdata = boston_test)
+```
+
+Lets see how well our conditional inference trees and model-based trees are able to predict the outcome in the test set. This time we use `postResample` to quickly get some useful performance metrics.
+
+```{r}
+postResample(pred = y_ct1, obs = boston_test$medv)
+postResample(pred = y_ct2, obs = boston_test$medv)
+postResample(pred = y_tree1, obs = boston_test$medv)
+postResample(pred = y_tree2, obs = boston_test$medv)
+```
+
+Note that with model-based recursive partitioning, we can also predict node membership.
+
+```{r}
+y_tree2n <- predict(tree1, newdata = boston_test, type = "node")
+table(y_tree2n)
+```
+
+## References
+
+* https://cran.r-project.org/web/packages/partykit/
