@@ -22,14 +22,7 @@ In this notebook we (again) use the drug consumption data. The data contains rec
 Source: https://archive.ics.uci.edu/ml/datasets/Drug+consumption+%28quantified%29
 
 ```{r}
-drugs <- read.csv("drug_consumption.data", header = FALSE)
-names(drugs) <- c("ID", "Age", "Gender", "Education", "Country", "Ethnicity", "Neuroticism", "Extraversion", "Openness", "Agreeableness", "Conscientiousness", "Impulsive", "SS", "Alcohol", "Amphet", "Amyl", "Benzos", "Caff", "Cannabis", "Choc", "Coke", "Crack", "Ecstasy", "Heroin", "Ketamine", "Legalh", "LSD", "Meth", "Mushrooms", "Nicotine", "Semer", "VSA")
-drugs$Age <- as.factor(drugs$Age)
-drugs$Gender  <- as.factor(drugs$Gender)
-drugs$Education  <- as.factor(drugs$Education)
-drugs$Country <- as.factor(drugs$Country)
-drugs$Ethnicity <- as.factor(drugs$Ethnicity)
-head(drugs)
+data(drugs)
 ```
 
 First, we build a dummy variable on LSD usage as our outcome of interest.
