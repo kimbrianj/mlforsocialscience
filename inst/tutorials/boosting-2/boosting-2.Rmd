@@ -20,7 +20,7 @@ library(ranger)
 library(xgboostExplainer)
 ```
 
-## Data
+### Data
 
 In this notebook we (again) use the drug consumption data. The data contains records for 1885 respondents with personality measurements (e.g. Big-5), level of education, age, gender, country of residence and ethnicity as features. In addition, information on the usage of 18 drugs is included. 
 

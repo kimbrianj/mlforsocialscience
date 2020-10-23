@@ -1,8 +1,12 @@
 ---
-title: "Machine Learning for Social Science"
-subtitle: "Boosting I"
-author: "Christoph Kern"
-output: html_notebook
+title: "Boosting I"
+output: 
+  learnr::tutorial:
+    progressive: true
+runtime: shiny_prerendered
+tutorial:
+  id: "boosting-1"
+  version: 0.5
 ---
 
 ## Setup
@@ -15,7 +19,7 @@ library(rpart)
 library(pROC)
 ```
 
-## Data
+### Data
 
 In this notebook we (again) use the drug consumption data. The data contains records for 1885 respondents with personality measurements (e.g. Big-5), level of education, age, gender, country of residence and ethnicity as features. In addition, information on the usage of 18 drugs is included. 
 
