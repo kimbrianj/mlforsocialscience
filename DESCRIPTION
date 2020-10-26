@@ -40,3 +40,5 @@ Imports:
   gam,
   verification,
   rpart
+Remotes:
+  AppliedDataSciencePartners/xgboostExplainer
