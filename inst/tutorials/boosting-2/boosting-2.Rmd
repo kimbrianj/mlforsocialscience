@@ -12,7 +12,6 @@ tutorial:
 ## Setup
 
 ```{r results='hide', message=FALSE, warning=FALSE}
-# devtools::install_github("AppliedDataSciencePartners/xgboostExplainer")
 library(caret)
 library(xgboost)
 library(mboost)
