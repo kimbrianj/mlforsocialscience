@@ -39,6 +39,10 @@ Imports:
   strucchange,
   gam,
   verification,
-  rpart
+  rpart,
+  titanic,
+  SuperLearner,
+  caretEnsemble,
+  DMwR
 Remotes:
   AppliedDataSciencePartners/xgboostExplainer
