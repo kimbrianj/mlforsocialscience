@@ -43,6 +43,12 @@ Imports:
   titanic,
   SuperLearner,
   caretEnsemble,
-  DMwR
+  DMwR,
+  httr,
+  jsonlite,
+  tidytext,
+  topicmodels,
+  SnowballC,
+  stopwords
 Remotes:
   AppliedDataSciencePartners/xgboostExplainer
