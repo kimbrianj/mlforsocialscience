@@ -31,4 +31,4 @@ launch_tutorial('introduction')
 - `'boosting-1'`: Applications of boosting with AdaBoost and Gradient Boosting
 - `'boosting-2'`: More boosting, with XGBoosting and Model-based Boosting.
 - `'ml-toolbox'`: Shows useful techniques in ML.
-- `'unsupervised-learning'`: Simple examples of implementing unsupervised learning, including k-means.
+- `'unsupervised-learning'`: Simple examples of implementing Latent Dirichlet Allocation for text analysis.
