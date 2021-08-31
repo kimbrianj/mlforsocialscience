@@ -16,6 +16,7 @@ tutorial:
 Load needed packages.
 
 ```{r}
+library(learnr)
 library(mlbench)
 library(boot)
 ```
