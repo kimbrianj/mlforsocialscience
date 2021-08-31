@@ -69,7 +69,7 @@ For this notebook we use data on patents which we will get from the PatentsView 
 Source: https://api.patentsview.org/doc.html
 
 ```{r}
-url <- 'https://www.patentsview.org/api/patents/query'
+url <- 'https://api.patentsview.org/patents/query'
 qry <- list(q = '{"assignee_organization":"university of maryland"}', 
             f='["patent_title","patent_year", "patent_abstract"]',
             o='{"per_page":2000}')
