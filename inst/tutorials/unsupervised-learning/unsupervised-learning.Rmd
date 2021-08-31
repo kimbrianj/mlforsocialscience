@@ -51,6 +51,7 @@ Text analysis can help with the following tasks:
 ## Setup
 
 ```{r results='hide', message=FALSE, warning=FALSE}
+library(learnr)
 library('ggplot2')
 library('httr')
 library('jsonlite')

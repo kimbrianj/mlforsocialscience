@@ -13,6 +13,7 @@ tutorial:
 ## Setup
 
 ```{r results='hide', message=FALSE, warning=FALSE}
+library(learnr)
 library(caret)
 library(ranger)
 library(pdp)

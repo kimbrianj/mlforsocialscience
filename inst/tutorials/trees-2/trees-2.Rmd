@@ -12,6 +12,7 @@ tutorial:
 ## Setup
 
 ```{r results='hide', message=FALSE, warning=FALSE}
+library(learnr)
 library(mlbench)
 library(partykit)
 library(strucchange)
