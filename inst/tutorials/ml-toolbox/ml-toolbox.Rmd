@@ -112,42 +112,6 @@ List the tuning results.
 rf
 ```
 
-## SMOTE
-
-In this section we investigate whether up-sampling the minority class helps to train better prediction models. One option is using `SMOTE()` from the `DMwR` package.
-
-```{r}
-?SMOTE
-```
-
-However, here we use caret as a wrapper for this function and directly specify SMOTE in the `sampling` argument of `trainControl()`.
-
-```{r}
-ctrl2 <- trainControl(method = "cv",
-                      number = 5,
-                      summaryFunction = twoClassSummary,
-                      classProbs = TRUE,
-                      verboseIter = TRUE,
-                      sampling = "smote")
-```
-
-Lets again train and tune random forests and extremely randomized trees, this time with modified training data.
-
-```{r}
-rf_s <- train(Survived ~ .,
-              data = titanic_train,
-              method = "ranger",
-              trControl = ctrl2,
-              tuneGrid = grid,
-              metric = "ROC")
-```
-
-Print the tuning results.
-
-```{r}
-rf_s
-```
-
 ## Stacking
 
 We may also want to consider a meta-model that is built on top of the predictions of lower level models. Here we consider the `caretEnsemble` package. For simplicity, we only use CTREE and a logistic regression as base methods. As a first step, the lower level models have to be build. 

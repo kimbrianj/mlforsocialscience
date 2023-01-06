@@ -43,7 +43,6 @@ Imports:
   titanic,
   SuperLearner,
   caretEnsemble,
-  DMwR,
   httr,
   jsonlite,
   tidytext,

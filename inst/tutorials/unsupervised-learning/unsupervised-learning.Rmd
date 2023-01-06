@@ -11,11 +11,11 @@ tutorial:
 
 ## Motivation
 
-Suppose we wanted to know what types of patents were awarded to UMD. We can look at the information from the abstracts and read through them, but this would take a very long time since there are more than a 1,000 abstracts. Instead, we can use text analysis to help us.
+Suppose we wanted to know what types of patents were awarded to UMD. We can look at the information from the abstracts and read through them, but this would take a very long time since there are many, many abstracts. Instead, we can use text analysis to help us.
 
 However, as-is, the text from abstracts can be difficult to analyze. We aren't able to use traditional statistical techniques without some heavy data manipulation, because the text is essentially a categorical variable with unique values for each patent. We need to basically break it apart and clean the data before we apply our data analysis techniques.
 
-In this notebook, we will first use the Patentsview API to pull data from patents awarded to inventors at University of Maryland, including the abstract from each of the patents. Then, we will go through the process of cleaning and processing the text data to prepare it for topic modeling, which is the process of automatically assigning topics to individual documents (in this case, an individual document is an abstract from a patent). We will use a technique called Latent Dirichlet Allocation as our topic modeling technique, and try to determine what sorts of patents were awarded to University of Maryland.
+In this notebook, we will first use the Patentsview API to pull data from patents awarded to inventors at University of Maryland, College Park, including the abstract from each of the patents. Then, we will go through the process of cleaning and processing the text data to prepare it for topic modeling, which is the process of automatically assigning topics to individual documents (in this case, an individual document is an abstract from a patent). We will use a technique called Latent Dirichlet Allocation as our topic modeling technique, and try to determine what sorts of patents were awarded to University of Maryland.
 
 ### Introduction to Text Analysis
 
@@ -70,7 +70,7 @@ Source: https://api.patentsview.org/doc.html
 
 ```{r}
 url <- 'https://api.patentsview.org/patents/query'
-qry <- list(q = '{"assignee_organization":"university of maryland"}', 
+qry <- list(q = '{"assignee_organization":"University of Maryland, College Park"}', 
             f='["patent_title","patent_year", "patent_abstract"]',
             o='{"per_page":2000}')
 request <- GET(url, query = qry)
