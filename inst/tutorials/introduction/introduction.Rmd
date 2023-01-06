@@ -88,13 +88,6 @@ str(boston)
 head(boston)
 ```
 
-Note that we can use `View()`, i.e. the data viewer, in connection with conditions on rows and columns to display only certain pieces of the whole data frame.
-
-```{r}
-View(boston)
-View(boston[-(1:500), 1:2])
-```
-
 Using index notation to access only specific variables or observations is an important tool as it can be used in conjunction with many different functions. It is therefore worthwhile to consider some basic examples.
 
 ```{r}
