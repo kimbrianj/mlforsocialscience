@@ -17,7 +17,7 @@ Imports:
   tidyverse,
   GGally,
   mlbench,
-  carat,
+  caret,
   boot,
   RSocrata,
   ggmap,
