@@ -18,6 +18,7 @@ library(fastAdaboost)
 library(gbm)
 library(rpart)
 library(pROC)
+library(mlforsocialscience)
 ```
 
 ### Data
@@ -65,7 +66,7 @@ evalStats <- function(...) c(twoClassSummary(...),
 ?defaultSummary()
 ```
 
-Now we can specifiy the `trainControl` object.
+Now we can specify the `trainControl` object.
 
 ```{r}
 ctrl  <- trainControl(method = "cv",

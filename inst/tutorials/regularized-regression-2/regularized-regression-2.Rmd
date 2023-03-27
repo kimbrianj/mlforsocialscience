@@ -12,7 +12,6 @@ tutorial:
 ## Setup
 
 ```{r results='hide', message=FALSE, warning=FALSE}
-library(learnr)
 library(foreach)
 library(mlbench)
 library(caret)

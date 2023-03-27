@@ -75,9 +75,10 @@ Both models were fitted using the full data set. Evaluating the prediction perfo
 
 ```{r}
 mean((predict(m1) - boston$medv)^2)
+```
+```{r}
 mean((predict(m2) - boston$medv)^2)
 ```
-
 ## Train and test set
 
 ###
@@ -118,9 +119,10 @@ And evaluate the prediction performance in the test set.
 
 ```{r}
 mean((pred3 - boston_test$medv)^2)
+```
+```{r}
 mean((pred4 - boston_test$medv)^2)
 ```
-
 ## Regression and CV
 
 ###
@@ -192,6 +194,6 @@ cv.err10$delta
 On this basis, we can now check whether the extended model does not only yield a lower training error, but also performs better when using hold-out sets for model evaluation.
 
 ```{r}
-cv.err10.2 <- cv.glm(boston, m2, K = 10)
+cv.err10.2<- cv.glm(boston, m2, K = 10)
 cv.err10.2$delta
 ```

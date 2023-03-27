@@ -16,7 +16,6 @@ We start by first installing some packages that we will need throughout this not
 
 ```{r}
 # install.packages("tidyverse")
-# install.packages("GGally")
 # install.packages("mlbench")
 ```
 
@@ -25,7 +24,6 @@ Besides installing the packages, they also have to be loaded in order to be oper
 ```{r}
 library(learnr)
 library(tidyverse)
-library(GGally)
 library(mlbench)
 ```
 
@@ -191,10 +189,4 @@ ggplot(boston) +
   geom_point(aes(x = lstat, y = medv)) +
   geom_smooth(aes(x = lstat, y = medv)) +
   facet_grid(. ~ chas)
-```
-
-Finally, a scatterplot matrix using `ggpairs()` from the `GGally` package.
-
-```{r}
-ggpairs(boston[,c(5,7,14,19)], lower = list(continuous = "smooth_loess"))
 ```

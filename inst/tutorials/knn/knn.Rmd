@@ -100,7 +100,7 @@ In order to find a useful kNN setup, we tune k using 10-Fold Cross-Validation. T
 
 ```{r}
 set.seed(761)
-tune <- tune.knn(X_train, y_train, k = 1:25, tunecontrol = tune.control(sampling = "cross"), cross = 10) 
+tune <- tune.knn(X_train, y_train, k = 1:25, tunecontrol = tune.control(sampling = "cross"), cross = 10)
 summary(tune)
 plot(tune)
 ```
