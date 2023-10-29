@@ -4,7 +4,6 @@ subtitle: "Introduction, R & RStudio"
 output: 
   learnr::tutorial:
     progressive: true
-runtime: shiny_prerendered
 tutorial:
   id: "introduction"
   version: 0.5
