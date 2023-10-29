@@ -74,14 +74,14 @@ ctrl  <- trainControl(method = "cv",
                       classProbs = TRUE)
 ```
 
-As a first method we try out AdaBoost as implemented in the `fastAdaboost` package. Specifically, Adaboost.M1 will be used with three try-out values for the number of iterations.
+<!-- As a first method we try out AdaBoost as implemented in the `fastAdaboost` package. Specifically, Adaboost.M1 will be used with three try-out values for the number of iterations. -->
 
-```{r}
-grid <- expand.grid(nIter = c(50, 100, 150),
-                    method = "Adaboost.M1")
-```
+<!-- ```{r} -->
+<!-- grid <- expand.grid(nIter = c(50, 100, 150), -->
+<!--                     method = "Adaboost.M1") -->
+<!-- ``` -->
 
-Now we can pass these two objects on to `train`, along with the specification of the model and the method, i.e. `adaboost`. 
+Now we can pass this on to `train`, along with the specification of the model and the method, i.e. `AdaBoost.M1`. 
 
 ```{r}
 set.seed(744)
