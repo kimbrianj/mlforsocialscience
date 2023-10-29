@@ -1,6 +1,6 @@
 ---
-title: "Machine Learning for Social Science"
-subtitle: "Introduction, R & RStudio"
+title: "Introduction to R"
+subtitle: "Machine Learning for Social Science"
 output: 
   learnr::tutorial:
     progressive: true
@@ -8,6 +8,8 @@ runtime: shiny_prerendered
 tutorial:
   id: "introduction"
   version: 0.5
+description: >
+  Introduction to some R commands that we will need to use for the class, Machine Learning for Social Science.
 ---
 
 ## Setup
@@ -47,19 +49,19 @@ dir()
 To get familiar with R's help system, we can explore the documentation for the function `help()`. This is equivalent to `help(help)`
 
 ```{r}
-help()
+# help()
 ```
 
 The documentation for global R options.
 
 ```{r}
-help(options)
+# help(options)
 ```
 
 Use `help.search()` to search the help system.
 
 ```{r}
-help.search("glm")
+# help.search("glm")
 ```
 
 ## Working with data

@@ -7,6 +7,9 @@ runtime: shiny_prerendered
 tutorial:
   id: "ml-basics"
   version: 0.5
+description: >
+  Introduction to Machine Learning basics. Topics covered include basic model fitting, train-test split, and cross validation.
+
 ---
 
 ## Setup
