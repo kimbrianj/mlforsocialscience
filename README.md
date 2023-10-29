@@ -11,12 +11,7 @@ devtools::install_github('kimbrianj/mlforsocialscience')
 
 ## Tutorials
 
-You can launch the tutorials using `mlforsocialscience::launch_tutorial`. For example, to run the `introduction` tutorial, you can use the following code.
-
-``` r
-library(mlforsocialscience)
-launch_tutorial('introduction')
-```
+You can launch the tutorials using the "Tutorial" pane in RStudio, typically in the top right next to "Environment", "History", and "Connections". Navigate to 
 
 **List of Tutorials Available:**
 - `'introduction'`: Provides an introduction to R and RStudio.
