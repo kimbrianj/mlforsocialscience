@@ -27,6 +27,7 @@ Imports:
   gglasso,
   gbm,
   xgboost,
+  adabag,
   mboost,
   pdp,
   iml,
