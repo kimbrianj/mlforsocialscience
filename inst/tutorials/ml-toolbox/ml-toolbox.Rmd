@@ -142,6 +142,7 @@ Now we build a higher level model by using the predictions of the previous model
 ```{r}
 glm_ensemble <- caretStack(model_list,
                            method = "glm",
+                           metric = "ROC",
                            trControl = trainControl(
                              method = "cv",
                              number = 5,
@@ -181,16 +182,24 @@ listWrappers()
 Here we choose a null model (`SL.mean`), elastic net (`SL.glmnet`) and random forests grown by ranger (`SL.ranger`) for building our Super Learner. Details on the construction of the higher level model can be found by calling `?method.template`.
 
 ```{r}
-sl <- SuperLearner(Y = y_train, X = X_train, family = binomial(),
-                   SL.library = c("SL.mean", "SL.glmnet", "SL.ranger"))
+sl <- SuperLearner(Y = y_train, X = X_train, 
+                   family = binomial(),
+                   SL.library = c("SL.mean", 
+                                  "SL.glmnet", 
+                                  "SL.ranger"))
 sl
 ```
 
 We can also run nested Cross-Validation to get CV estimates for the performance of the individual models and the Super Learner.
 
 ```{r}
-cv_sl <- CV.SuperLearner(Y = y_train, X = X_train, family = binomial(), V = 5,
-                        SL.library = c("SL.mean", "SL.glmnet", "SL.ranger"))
+cv_sl <- CV.SuperLearner(Y = y_train, X = X_train, 
+                         family = binomial(), 
+                         V = 5,
+                        SL.library = c("SL.mean", 
+                                       "SL.glmnet", 
+                                       "SL.ranger",
+                                       "SL.xgboost"))
 cv_sl
 summary(cv_sl)
 ```
@@ -225,7 +234,6 @@ sl_roc <- roc(titanic_test$Survived, p_sl$pred[, 1])
 
 ```{r}
 ggroc(list(RF = rf_roc, 
-           RF_SMOTE = rf_s_roc, 
            Caret_Stack = ens_roc,
            SuperLearner = sl_roc)) +
   geom_segment(aes(x = 1, xend = 0, y = 0, yend = 1), 

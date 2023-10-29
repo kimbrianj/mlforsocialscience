@@ -25,7 +25,6 @@ Imports:
   PRROC,
   pROC,
   gglasso,
-  fastAdaboost,
   gbm,
   xgboost,
   mboost,

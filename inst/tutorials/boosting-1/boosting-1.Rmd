@@ -14,7 +14,6 @@ tutorial:
 ```{r results='hide', message=FALSE, warning=FALSE}
 library(learnr)
 library(caret)
-library(fastAdaboost)
 library(gbm)
 library(rpart)
 library(pROC)
@@ -89,7 +88,7 @@ set.seed(744)
 ada <- train(D_LSD ~ Age + Gender + Education + Neuroticism + Extraversion +
              Openness + Agreeableness + Conscientiousness + Impulsive + SS,
             data = drugs_train,
-            method = "adaboost",
+            method = "AdaBoost.M1",
             trControl = ctrl,
             tuneGrid = grid,
             metric = "logLoss")
