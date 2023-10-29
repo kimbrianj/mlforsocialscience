@@ -11,7 +11,7 @@ devtools::install_github('kimbrianj/mlforsocialscience')
 
 ## Tutorials
 
-You can launch the tutorials using the "Tutorial" pane in RStudio, typically in the top right next to "Environment", "History", and "Connections". Navigate to 
+You can launch the tutorials using the "Tutorial" pane in RStudio, typically in the top right next to "Environment", "History", and "Connections". Navigate to the tutorial you want to start, then click on "Start Tutorial". To open a new tutorial, click on the stop sign at the top.
 
 **List of Tutorials Available:**
 - `'introduction'`: Provides an introduction to R and RStudio.
