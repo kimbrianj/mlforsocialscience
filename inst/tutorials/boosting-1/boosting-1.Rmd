@@ -90,7 +90,6 @@ ada <- train(D_LSD ~ Age + Gender + Education + Neuroticism + Extraversion +
             data = drugs_train,
             method = "AdaBoost.M1",
             trControl = ctrl,
-            tuneGrid = grid,
             metric = "logLoss")
 ```
 
