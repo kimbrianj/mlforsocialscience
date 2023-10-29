@@ -49,4 +49,5 @@ Imports:
   SnowballC,
   stopwords
 Remotes:
-  AppliedDataSciencePartners/xgboostExplainer
+  AppliedDataSciencePartners/xgboostExplainer,
+  souravc83/fastAdaboost
