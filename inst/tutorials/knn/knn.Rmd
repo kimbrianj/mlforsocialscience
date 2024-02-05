@@ -79,16 +79,10 @@ summary(y_train)
 summary(y_test)
 ```
 
-As a nice illustration of our prediction problem, we can use `qmap()` to build a map of Chicago and then plot the crime incidents colored by `arrest` on top.
-
-```{r,  message=FALSE, warning=FALSE}
-bbox <- c(left = -87.896805, bottom = 41.677015, right = -87.409286, top = 42.082936)
-map <- get_stamenmap(bbox = bbox, zoom = 12, maptype = "toner-hybrid")
-map <- ggmap(map)
-```
+We can plot the crime incidents colored by `arrest`.
 
 ```{r}
-map + 
+ggplot(X_train) + 
   geom_point(data = X_train, aes(x = longitude, y = latitude, color = y_train), size = 1, alpha = 0.5) 
 ```
 
