@@ -17,7 +17,6 @@ library(caret)
 library(xgboost)
 library(mboost)
 library(ranger)
-library(xgboostExplainer)
 library(mlforsocialscience)
 ```
 
@@ -193,51 +192,6 @@ Another option is to compare the resampling distributions with scatterplots.
 
 ```{r}
 splom(resamps)
-```
-
-## XGBoost Explainer
-
-Finally, we take a look at the `xgboostExplainer` package. Currently it does not work with XGBoost models that were build with `caret`, i.e. we have to use the `xgboost` package to re-build our XGBoost model. We first need a model matrix.
-
-```{r}
-d_matrix <- model.matrix(D_LSD ~ Age + Gender + Education + Neuroticism + Extraversion + Openness + Agreeableness + Conscientiousness + Impulsive + SS, data = drugs)[,-1]
-```
-
-This matrix can be used to create the data objects needed for `xgboost`.
-
-```{r}
-xgb_train_data <- xgb.DMatrix(d_matrix[inTrain,], label = ifelse(drugs_train$D_LSD == "LSD", 1, 0))
-xgb_test_data <- xgb.DMatrix(d_matrix[-inTrain,])
-```
-
-On this basis, the XGBoost model can be fitted. 
-
-```{r}
-xgb_model <- xgboost(param = list(objective = "binary:logistic"), 
-                     data = xgb_train_data, 
-                     nrounds = 1000,
-                     max_depth = 1,
-                     eta = 0.01,
-                     gamma = 0,
-                     colsample_bytree = 1,
-                     min_child_weight = 10,
-                     subsample = 0.7,
-                     verbose = 0)
-```
-
-This `xgb_model` object can now be used to build the explainer object, which in turn is needed to `explainPredictions()`.
-
-```{r, message = FALSE}
-explainer <- buildExplainer(xgb_model, xgb_train_data, type = "binary")
-train_expl <- explainPredictions(xgb_model, explainer, xgb_test_data)
-train_expl
-```
-
-As the final step, predictions for individual (test) observations can be explained graphically with `showWaterfall()`.
-
-```{r, message = FALSE}
-showWaterfall(xgb_model, explainer, xgb_test_data, d_matrix[-inTrain,], 1, type = "binary")
-showWaterfall(xgb_model, explainer, xgb_test_data, d_matrix[-inTrain,], 2, type = "binary")
 ```
 
 ## References
