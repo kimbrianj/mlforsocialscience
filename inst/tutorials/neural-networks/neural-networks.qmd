@@ -1,10 +1,15 @@
 ---
 title: "Neural Networks"
-format: html
-editor: visual
+output: 
+  learnr::tutorial:
+    progressive: true
+runtime: shiny_prerendered
+tutorial:
+  id: "ml-basics"
+  version: 0.5
 ---
 
-## Quarto
+## Neural Networks
 
 ```{r}
 library(tensorflow)
@@ -13,7 +18,11 @@ library(tidyverse)
 library(tidymodels)
 ```
 
-## Stem Salaries
+## STEM Salaries
+
+In this tutorial, we will go over the process of using neural networks to predict stem salaries using characteristics of jobs of people within STEM fields. This might be useful for imputing missing salary information for people who have missing incomes in survey data, or it might be used to build a tool that lets you predict what a person's salary might be based on certain characteristics.
+
+First, we bring in the data and select just the variables that we will use to do the prediction. We will use a relatively small set of features: job title, years of experience, years at the company, gender, education, and race.
 
 ```{r}
 salaries <- read_csv('stem-salaries.csv')
@@ -27,7 +36,11 @@ stem_salaries <- salaries %>%
          education = factor(education), 
          race = factor(race)) %>%
   na.omit()
+```
 
+Next, we use the `tidymodels` format to create a recipe with the data. Here, we create dummy variables with the categorical variables in our dataset. The `bake` function allows us to get the actual data back so that we can use it with `keras` and `tensorflow`.
+
+```{r}
 dataset <- recipe(totalyearlycompensation ~ ., 
                   stem_salaries) %>%
   step_dummy(all_factor_predictors(), one_hot = TRUE) %>%
@@ -45,7 +58,7 @@ stem_train <- training(data_split)
 stem_test  <- testing(data_split)
 ```
 
-The `echo: false` option disables the printing of code (only output is displayed).
+Let's do our train-test split. For neural networks with Keras, we need to separate out the features from the labels, so we will have separate objects for both training and test sets.
 
 ```{r}
 train_features <- stem_train %>% 
@@ -59,10 +72,14 @@ test_labels <- stem_test %>%
   select(totalyearlycompensation) 
 ```
 
+We can use a normalizer to do scaling for us as part of the model-building process.
+
 ```{r}
 normalizer <- layer_normalization(axis = -1L)
 normalizer %>% adapt(as.matrix(train_features))
 ```
+
+We then create a function that builds and compiles the model. This doesn't fit the model with the data just yet, but it takes in the normalizer as an argument and creates a compiled model that is ready for us to fit using our data. Note that we are setting the layers here in the first chunk so that we have 64 dense nodes in two layers. The last layer is a single node because this is a regression problem, so we get one output as our prediction.
 
 ```{r}
 build_and_compile_model <- function(norm) {
@@ -81,7 +98,10 @@ build_and_compile_model <- function(norm) {
 }
 ```
 
+We can then take our model and fit it the `fit` function.
+
 ```{r}
+#| cache: true
 dnn_model <- build_and_compile_model(normalizer)
 history <- dnn_model %>% fit(
   as.matrix(train_features),
@@ -90,5 +110,10 @@ history <- dnn_model %>% fit(
   verbose = 0,
   epochs = 300
 )
+```
+
+Let's take a look at the fit over the epochs that we set.
+
+```{r}
 plot(history)
 ```
