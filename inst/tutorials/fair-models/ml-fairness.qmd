@@ -1,0 +1,204 @@
+---
+title: "ML Ethics: Fairness"
+output: 
+  learnr::tutorial:
+    progressive: true
+runtime: shiny_prerendered
+tutorial:
+  id: "ml-basics"
+  version: 0.5
+---
+
+## ML Ethics: Creating Fair Models
+
+## Getting Started: Training models
+
+Let's start by building some ML models.
+
+```{r}
+#| warning: false
+library(mlforsocialscience)
+library(tidyverse)
+library(tidymodels)
+library(desirability2)
+```
+
+We bring in the LSD dataset and do some data cleaning. We'll be predicting LSD usage using variables on personality, as well as some demographic variables. We do the train-test split, then create the folds for 10-fold cross-validation.
+
+```{r}
+#| cache: true
+data(drugs)
+drugs$D_LSD <- "LSD"
+drugs$D_LSD[drugs$LSD == "CL0"] <- "no_LSD"
+drugs$D_LSD <- as.factor(drugs$D_LSD)
+
+LSD_split <- initial_split(drugs[,c('Age','Gender',
+                                    'Education','Neuroticism',
+                                    'Extraversion', 'Openness',
+                                    'Agreeableness', 'Conscientiousness',
+                                    'Impulsive', 'SS', 'D_LSD')])
+LSD_train <- training(LSD_split)
+LSD_test <- testing(LSD_split)
+
+folds <- vfold_cv(LSD_train, v = 10)
+```
+
+We specify the XGBoost model. We will be tuning tree depth, number of trees (iterations), and the learning rate.
+
+```{r}
+xgb_spec <- 
+  boost_tree(tree_depth = tune(),
+              trees = tune(),
+             learn_rate = tune()) %>% 
+  set_engine("xgboost") %>% 
+  set_mode("classification")
+```
+
+We set up the tuning grid for XGBoost.
+
+```{r}
+grid <- expand.grid(tree_depth = c(1, 3, 5),
+                    trees = c(500, 1000, 1500, 2000, 2500, 3000),
+                    learn_rate = c(0.05, 0.01, 0.005))
+```
+
+We create the workflow by adding the model and formula. Since we selected the variables to include only the ones we want to use for prediction, we can just use the formula including everything.
+
+```{r}
+xgb_wf <- 
+  workflow() %>%
+  add_model(xgb_spec) %>%
+  add_formula(D_LSD ~ .)
+```
+
+The `tune_grid` function allows us to fit these models to tune according to the grid that we set up. Here, we are optimizing on AUC-ROC.
+
+```{r}
+#| cache: true
+xgb_fit_rs <- 
+  xgb_wf %>% 
+  tune_grid(resamples = folds,
+            grid = grid,
+            metrics = metric_set(roc_auc))
+```
+
+Using `autoplot`, we can see how our models are performing and make sure we are tuning appropriately.
+
+```{r}
+autoplot(xgb_fit_rs)
+```
+
+Let's repeat this with random forest models. We can go through the same process with the random forest models from `ranger`. See <https://www.tidymodels.org/find/parsnip/> for a list of models that you can use. Our tuning grid includes `mtry` (the number of predictors to use at each step) and `min_n` (our way of controlling the size of the trees).
+
+```{r}
+rf_spec <- 
+  rand_forest(mtry = tune(),
+              trees = 500,
+             min_n = tune()) %>% 
+  set_engine("ranger") %>% 
+  set_mode("classification")
+
+rf_wf <- 
+  workflow() %>%
+  add_model(rf_spec) %>%
+  add_formula(D_LSD ~ .)
+
+rf_grid <- expand.grid(mtry = c(3,5,7),
+                    min_n = c(5, 10, 15, 20, 25, 30))
+```
+
+We again use `tune_grid` to fit the model.
+
+```{r}
+#| cache: true
+rf_fit_rs <- 
+  rf_wf %>% 
+  tune_grid(resamples = folds,
+            grid = rf_grid,
+            metrics = metric_set(roc_auc))
+collect_metrics(rf_fit_rs)
+```
+
+```{r}
+autoplot(rf_fit_rs)
+```
+
+## Adding Fairness Metrics
+
+The `tidymodels` framework has metrics that make it easier to evaluate different metrics of fairness. Instead of just using `roc_auc`, we can create a set of metrics that we calculate as we fit the models.
+
+```{r}
+m_set <-
+  metric_set(
+    accuracy,
+    yardstick::precision,
+    roc_auc,
+    equal_opportunity(Gender),
+    equalized_odds(Gender),
+    demographic_parity(Gender))
+
+```
+
+Once we set up our metric set, we can rerun the tuning process including the new metrics.
+
+```{r}
+rf_fit_rs <- 
+  rf_wf %>% 
+  tune_grid(resamples = folds,
+            grid = rf_grid,
+            metrics = m_set)
+collect_metrics(rf_fit_rs)
+```
+
+```{r}
+autoplot(rf_fit_rs)
+```
+
+We can do the same for XGBoost.
+
+```{r}
+#| cache: true
+xgb_fit_rs <- 
+  xgb_wf %>% 
+  tune_grid(resamples = folds,
+            grid = grid,
+            metrics = m_set)
+```
+
+```{r}
+autoplot(xgb_fit_rs)
+```
+
+## Finding the Best Model
+
+You want to take a holistic view of the models using all of this information. One way to do this might be by setting up a "desirability" measure based on the metrics that you've calculated.
+
+```{r}
+best_params <-
+  # extract the tuning results for the boosted tree model
+  xgb_fit_rs %>%
+  # collect the metrics associated with it
+  collect_metrics() %>%
+  # pivot the metrics so that each is in a column
+  pivot_wider(
+    id_cols = c(tree_depth, trees, learn_rate), 
+    names_from = .metric, 
+    values_from = mean
+  ) %>%
+  mutate(
+    # higher roc values are better; detect max and min from the data
+    d_roc     = d_max(roc_auc, use_data = TRUE),
+    # lower equalized odds are better; detect max and min from the data
+    d_e_odds  = d_min(equalized_odds, use_data = TRUE),
+    # compute overall desirability based on d_roc and d_e_odds
+    d_overall = d_overall(across(starts_with("d_")))
+  ) %>%
+  # pick the model with the highest desirability value
+  slice_max(d_overall)
+```
+
+Note that this will vary depending on the type of problem that you have! The above tries to maximize ROC-AUC and minimize Equalized Odds ... but that may not be what you want to do!
+
+```{r}
+best_params
+```

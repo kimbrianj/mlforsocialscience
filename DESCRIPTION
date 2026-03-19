@@ -47,7 +47,10 @@ Imports:
   tidytext,
   topicmodels,
   SnowballC,
-  stopwords
+  stopwords,
+  keras,
+  reticulate,
+  tensorflow
 Remotes:
   AppliedDataSciencePartners/xgboostExplainer,
   souravc83/fastAdaboost

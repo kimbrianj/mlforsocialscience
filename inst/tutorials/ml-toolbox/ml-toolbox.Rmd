@@ -216,7 +216,7 @@ Finally, we create predicted risk scores for our outcome in the test set.
 
 ```{r}
 p_rf <- predict(rf, newdata = titanic_test, type = "prob")
-p_rf_s <- predict(rf_s, newdata = titanic_test, type = "prob")
+#p_rf_s <- predict(rf_s, newdata = titanic_test, type = "prob")
 p_ens <- predict(glm_ensemble, newdata = titanic_test, type = "prob")
 p_sl <- predict(sl, X_test, onlySL = TRUE)
 ```
@@ -225,7 +225,7 @@ Creating ROC objects based on predicted probabilities...
 
 ```{r}
 rf_roc <- roc(titanic_test$Survived, p_rf$X1)
-rf_s_roc <- roc(titanic_test$Survived, p_rf_s$X1)
+#rf_s_roc <- roc(titanic_test$Survived, p_rf_s$X1)
 ens_roc <- roc(titanic_test$Survived, p_ens)
 sl_roc <- roc(titanic_test$Survived, p_sl$pred[, 1])
 ```

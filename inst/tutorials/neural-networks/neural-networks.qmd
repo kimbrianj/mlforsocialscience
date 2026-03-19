@@ -1,0 +1,94 @@
+---
+title: "Neural Networks"
+format: html
+editor: visual
+---
+
+## Quarto
+
+```{r}
+library(tensorflow)
+library(keras3)
+library(tidyverse)
+library(tidymodels)
+```
+
+## Stem Salaries
+
+```{r}
+salaries <- read_csv('stem-salaries.csv')
+stem_salaries <- salaries %>% 
+  transmute(inUS = nation == 'United States',
+         title = factor(title),
+         totalyearlycompensation,
+         yearsofexperience,
+         yearsatcompany,
+         gender = factor(gender),
+         education = factor(education), 
+         race = factor(race)) %>%
+  na.omit()
+
+dataset <- recipe(totalyearlycompensation ~ ., 
+                  stem_salaries) %>%
+  step_dummy(all_factor_predictors(), one_hot = TRUE) %>%
+  prep() %>%
+  bake(new_data = NULL)
+```
+
+Let's select some variables to use.
+
+```{r}
+data_split <- initial_split(dataset, prop = 0.8)
+
+# Create data frames for the two sets:
+stem_train <- training(data_split)
+stem_test  <- testing(data_split)
+```
+
+The `echo: false` option disables the printing of code (only output is displayed).
+
+```{r}
+train_features <- stem_train %>% 
+  select(-totalyearlycompensation)
+test_features <- stem_test %>% 
+  select(-totalyearlycompensation)
+
+train_labels <- stem_train %>% 
+  select(totalyearlycompensation)
+test_labels <- stem_test %>% 
+  select(totalyearlycompensation) 
+```
+
+```{r}
+normalizer <- layer_normalization(axis = -1L)
+normalizer %>% adapt(as.matrix(train_features))
+```
+
+```{r}
+build_and_compile_model <- function(norm) {
+  model <- keras_model_sequential() %>%
+    norm() %>%
+    layer_dense(64, activation = 'relu') %>%
+    layer_dense(64, activation = 'relu') %>%
+    layer_dense(1)
+
+  model %>% compile(
+    loss = 'mean_squared_error',
+    optimizer = optimizer_adam(0.001)
+  )
+
+  model
+}
+```
+
+```{r}
+dnn_model <- build_and_compile_model(normalizer)
+history <- dnn_model %>% fit(
+  as.matrix(train_features),
+  as.matrix(train_labels),
+  validation_split = 0.2,
+  verbose = 0,
+  epochs = 300
+)
+plot(history)
+```
