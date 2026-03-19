@@ -15,6 +15,9 @@ LazyData: true
 Imports:
   learnr,
   tidyverse,
+  tidymodels,
+  tensorflow,
+  keras3,
   mlbench,
   caret,
   boot,
