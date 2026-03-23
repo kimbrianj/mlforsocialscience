@@ -25,7 +25,7 @@ In this tutorial, we will go over the process of using neural networks to predic
 First, we bring in the data and select just the variables that we will use to do the prediction. We will use a relatively small set of features: job title, years of experience, years at the company, gender, education, and race.
 
 ```{r}
-salaries <- read_csv('stem-salaries.csv')
+data(stem_salaries)
 stem_salaries <- salaries %>% 
   transmute(inUS = nation == 'United States',
          title = factor(title),
@@ -91,7 +91,7 @@ build_and_compile_model <- function(norm) {
 
   model %>% compile(
     loss = 'mean_squared_error',
-    optimizer = optimizer_adam(0.001)
+    optimizer = optimizer_adam(0.1)
   )
 
   model
@@ -108,7 +108,8 @@ history <- dnn_model %>% fit(
   as.matrix(train_labels),
   validation_split = 0.2,
   verbose = 0,
-  epochs = 300
+  batch_size = 32,
+  epochs = 100
 )
 ```
 
@@ -116,4 +117,32 @@ Let's take a look at the fit over the epochs that we set.
 
 ```{r}
 plot(history)
+```
+
+## Tuning Neural Network models
+
+```{r}
+folds <- vfold_cv(stem_train, v = 10)
+```
+
+```{r}
+train1 <- training(folds$splits[[1]])
+train1_features <- train1 %>% 
+  select(-totalyearlycompensation)
+train1_label <- train1  %>% 
+  select(totalyearlycompensation)
+val1 <- testing(folds$splits[[1]])
+val1_features <- val1 %>% 
+  select(-totalyearlycompensation)
+val1_label <- val1  %>% 
+  select(totalyearlycompensation)
+
+dnn_model <- build_and_compile_model(normalizer)
+history <- dnn_model %>% fit(
+  as.matrix(train1_features),
+  as.matrix(train1_label),
+  validation_data = list(val1_features, val1_label),
+  verbose = 0,
+  epochs = 10
+)
 ```
